@@ -4,15 +4,18 @@ import { serve } from '@hono/node-server'
 import type { DB } from './db/index'
 import { getDb } from './db/index'
 import { entriesRouter } from './routes/entries'
+import { eventsRouter } from './routes/events'
+import { projectsRouter } from './routes/projects'
+import { reviewsRouter } from './routes/reviews'
 
 export function createApp(db: DB) {
   const app = new Hono()
-
   app.use('*', cors({ origin: 'http://localhost:5173' }))
-
   app.get('/health', (c) => c.json({ ok: true }))
   app.route('/api/entries', entriesRouter(db))
-
+  app.route('/api/events', eventsRouter(db))
+  app.route('/api/projects', projectsRouter(db))
+  app.route('/api/reviews', reviewsRouter(db))
   return app
 }
 
