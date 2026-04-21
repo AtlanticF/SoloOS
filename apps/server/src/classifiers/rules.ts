@@ -1,4 +1,4 @@
-import type { Pillar } from '@soloos/shared'
+import type { Pillar, EntrySource } from '@soloos/shared'
 
 const TAG_MAP: Record<string, Pillar> = {
   '#input': 'INPUT',
@@ -10,7 +10,7 @@ const TAG_MAP: Record<string, Pillar> = {
 
 interface EntryLike {
   content: string
-  source: string
+  source: EntrySource
 }
 
 export function applyRules(entry: EntryLike): Pillar | null {

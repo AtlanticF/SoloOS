@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { applyRules } from './rules'
-import type { CreateEntryInput } from '@soloos/shared'
+import type { EntrySource } from '@soloos/shared'
 
 describe('applyRules', () => {
   it('returns OUTPUT for github source', () => {
-    const entry: CreateEntryInput & { source: string } = {
+    const entry: { content: string; source: EntrySource } = {
       content: '{}',
       source: 'github',
     }

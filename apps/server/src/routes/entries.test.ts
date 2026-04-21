@@ -32,7 +32,16 @@ describe('POST /api/entries', () => {
     expect(body.status).toBe('processed')
   })
 
-  it('GET /api/entries?status=pending returns only pending entries', async () => {
+})
+
+describe('GET /api/entries', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('returns only entries matching status filter', async () => {
     await app.request('/api/entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -42,5 +51,36 @@ describe('POST /api/entries', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveLength(1)
+  })
+})
+
+describe('error handling', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('POST with missing content returns 400', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST with invalid JSON returns 400', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('GET with invalid status returns 400', async () => {
+    const res = await app.request('/api/entries?status=garbage')
+    expect(res.status).toBe(400)
   })
 })

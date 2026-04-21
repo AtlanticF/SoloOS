@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { DB } from '../db/index'
+import type { EntrySource } from '@soloos/shared'
 import * as schema from '../db/schema'
 import { applyRules } from '../classifiers/rules'
 
@@ -10,6 +11,9 @@ export function entriesRouter(db: DB) {
 
   app.get('/', async (c) => {
     const status = c.req.query('status')
+    if (status && status !== 'pending' && status !== 'processed') {
+      return c.json({ error: 'invalid status' }, 400)
+    }
     const rows = status
       ? await db.select().from(schema.entries).where(eq(schema.entries.status, status))
       : await db.select().from(schema.entries)
@@ -17,7 +21,15 @@ export function entriesRouter(db: DB) {
   })
 
   app.post('/', async (c) => {
-    const body = await c.req.json<{ content: string; source?: string; quick_tags?: string[] }>()
+    let body: { content?: string; source?: EntrySource; quick_tags?: string[] }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+    if (!body?.content || typeof body.content !== 'string') {
+      return c.json({ error: 'content is required' }, 400)
+    }
     const now = Math.floor(Date.now() / 1000)
     const pillar = applyRules({ content: body.content, source: body.source ?? 'cli' })
     const status = pillar ? 'processed' : 'pending'
