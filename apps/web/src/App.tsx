@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Shell } from '@/components/layout/Shell'
+import { Cockpit } from '@/pages/Cockpit'
 
-function Cockpit() { return <div className="text-zinc-600 text-xs">Cockpit coming in Task 9</div> }
 function Explorer() { return <div className="text-zinc-600 text-xs">Explorer coming in Task 10</div> }
 function Review() { return <div className="text-zinc-600 text-xs">Review coming in Task 11</div> }
 
