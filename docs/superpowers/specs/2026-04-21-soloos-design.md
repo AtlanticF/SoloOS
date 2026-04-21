@@ -1,45 +1,45 @@
-# SoloOS — 设计规格文档
+# SoloOS — Design Specification
 
-**日期：** 2026-04-21
-**状态：** 已确认，待实现
-
----
-
-## 1. 产品定位
-
-SoloOS 是一个为**具备开发能力的 Solopreneur** 设计的、本地运行的"一人公司商业闭环操作系统（Business Loop OS）"。
-
-它不是笔记软件，而是一个**将数据输入转化为商业决策的编译器**，核心价值是：把散落在代码、收入、内容、精力之间的信号，通过五大支柱自动关联，生成可供决策的洞察。
-
-### 核心用户
-
-独立开发者 / 技术型创始人，相信"代码即系统"，追求数据主权，不满足于碎片化 SaaS 工具。
-
-### 关键差异化
-
-- **关联优先**：产品灵魂是跨维度关联（Input → Output → Financial），而非记录本身
-- **系统驱动**：Project 自动从数据中涌现，不需要人工维护
-- **数据主权**：全量本地运行，无云依赖，数据存 `~/.soloos/soloos.db`
+**Date:** 2026-04-21
+**Status:** Approved, pending implementation
 
 ---
 
-## 2. 五大支柱（Pillars）
+## 1. Product Positioning
 
-| 支柱 | 类型 | 含义 | 典型事件 |
-|------|------|------|---------|
-| Input | 认知 | 信息摄入、学习、调研 | 读了一篇竞品分析 |
-| Output | 产能 | 代码提交、内容发布、交付 | GitHub Commit、发布文章 |
-| Audience | 人脉 | 用户增长、深度互动 | 新增付费用户、商务对接 |
-| Financial | 财务 | 现金流变动、刚性成本 | Stripe 到账、SaaS 扣费 |
-| Energy | 精力 | 状态异常信号 | 连续加班、失眠、成就感 |
+SoloOS is a locally-run **Business Loop OS** for developer-founders — a system that compiles raw activity data into business decisions. It is not a note-taking app.
+
+Core value: connect signals scattered across code, revenue, content, and energy through five pillars, automatically surface correlations, and generate actionable insights.
+
+### Target User
+
+Developer-capable solopreneurs who believe in "code as systems," value data sovereignty, and are frustrated by fragmented SaaS tooling.
+
+### Key Differentiators
+
+- **Correlation-first**: The soul of the product is cross-domain linking (Input → Output → Financial), not logging
+- **System-driven**: Projects emerge from data automatically — no manual maintenance required
+- **Data sovereignty**: Fully local, no cloud dependency, data stored at `~/.soloos/soloos.db`
 
 ---
 
-## 3. 技术栈
+## 2. The Five Pillars
 
-### 项目结构
+| Pillar | Domain | Meaning | Typical Events |
+|--------|--------|---------|----------------|
+| Input | Knowledge | Information intake, learning, research | Reading a competitor analysis |
+| Output | Productivity | Code commits, content published, deliverables | GitHub commit, publishing an article |
+| Audience | Growth | User acquisition, deep interactions | New paying user, high-value business meeting |
+| Financial | Cash flow | Revenue events, fixed costs | Stripe payment received, SaaS subscription charged |
+| Energy | State | Anomalous personal signals | 12-hour crunch session, insomnia, post-milestone high |
 
-pnpm workspace Monorepo，三个包：
+---
+
+## 3. Tech Stack
+
+### Project Structure
+
+pnpm workspace monorepo with three packages:
 
 ```
 SoloOS/
@@ -47,226 +47,226 @@ SoloOS/
 │   ├── server/        # Hono + TypeScript + SQLite
 │   └── web/           # Vite + React
 ├── packages/
-│   └── shared/        # 共享 TypeScript 类型定义
+│   └── shared/        # Shared TypeScript type definitions
 └── package.json
 ```
 
-### 选型
+### Technology Choices
 
-| 层 | 技术 | 理由 |
-|----|------|------|
-| Server | Hono + TypeScript | 轻量 TS-first，比 Express 快 |
-| ORM | Drizzle ORM | SQLite 原生，类型安全 |
-| Web | Vite + React | 开发体验最快 |
-| UI | shadcn/ui + Recharts | 组件完整，Radar/Sparkline 支持 |
-| 数据请求 | TanStack Query | 缓存 + 异步状态管理 |
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+| Server | Hono + TypeScript | Lightweight, TS-first, 3× faster than Express |
+| ORM | Drizzle ORM | Native SQLite support, fully type-safe |
+| Web | Vite + React | Best-in-class DX |
+| UI | shadcn/ui + Recharts | Complete component set, Radar/Sparkline support |
+| Data fetching | TanStack Query | Cache + async state management |
 
-### 启动方式
+### Dev Start
 
 ```bash
-pnpm dev   # 同时启动 server :3000 + web :5173
+pnpm dev   # Starts server :3000 + web :5173 concurrently
 ```
 
 ---
 
-## 4. 数据模型
+## 4. Data Model
 
-### 4.1 核心表
+### 4.1 Core Tables
 
-#### `entries` — 原始输入（不可变）
+#### `entries` — Raw input (immutable)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | TEXT PK | UUID |
-| content | TEXT | 原始内容：文字、URL、JSON |
+| content | TEXT | Raw content: text, URL, or JSON |
 | source | TEXT | cli / github / stripe / browser-ext |
 | status | TEXT | pending / processed |
-| quick_tags | TEXT | JSON array，用户随手标签 |
+| quick_tags | TEXT | JSON array — user-provided quick labels |
 | created_at | INTEGER | Unix timestamp |
 
-#### `events` — 核心原子（结构化）
+#### `events` — Core atom (structured)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | TEXT PK | UUID |
 | entry_id | TEXT FK | → entries |
 | pillar | TEXT | INPUT / OUTPUT / AUDIENCE / FINANCIAL / ENERGY |
-| project_id | TEXT FK? | → projects，可为空 |
-| impact_score | INTEGER | -10 到 10，对该支柱的影响 |
-| classifier | TEXT | rule / api-key / skill，记录谁分类的 |
-| metadata | TEXT | JSON，扩展字段 |
-| occurred_at | INTEGER | 事件发生时间 |
-| created_at | INTEGER | 写入时间 |
+| project_id | TEXT FK? | → projects, nullable |
+| impact_score | INTEGER | -10 to 10, effect on the pillar |
+| classifier | TEXT | rule / api-key / skill — who classified this |
+| metadata | TEXT | JSON, extensible fields |
+| occurred_at | INTEGER | When the event happened |
+| created_at | INTEGER | When the record was written |
 
-#### `projects` — 逻辑聚合器
+#### `projects` — Logical aggregator
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | TEXT PK | UUID |
-| name | TEXT | 项目名，可自动命名 |
+| name | TEXT | Project name, can be auto-generated |
 | status | TEXT | active / dormant / completed |
-| match_rules | TEXT | JSON，repo 名 / tag 规则 |
-| is_auto | INTEGER | 0=手动创建，1=系统自动发现 |
-| first_event_at | INTEGER | 定义项目开始时间 |
-| last_event_at | INTEGER | 14 天无更新自动转 dormant |
+| match_rules | TEXT | JSON — repo names / tag patterns |
+| is_auto | INTEGER | 0 = manually created, 1 = system-discovered |
+| first_event_at | INTEGER | Defines project start |
+| last_event_at | INTEGER | No events for 14 days → auto dormant |
 | created_at | INTEGER | |
 
-> ROI = SUM(Financial events impact) 实时从 events 计算，不存冗余字段。
+> ROI = SUM(Financial event impact scores), computed live from events — no cached field.
 
-#### `reviews` — 周期评审（Review Gate 状态机）
+#### `reviews` — Periodic review (Review Gate state machine)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | TEXT PK | UUID |
 | period | TEXT | weekly / monthly |
 | period_start | INTEGER | |
 | period_end | INTEGER | |
-| snapshot | TEXT | JSON，该周期各 Pillar 统计快照 |
-| reflection | TEXT | 用户手写复盘 |
-| ai_insight | TEXT | AI 生成趋势分析 |
-| completed_at | INTEGER | **NULL = 未完成，触发 Review Gate 锁定** |
+| snapshot | TEXT | JSON — per-pillar stats for the period |
+| reflection | TEXT | User's written retrospective |
+| ai_insight | TEXT | AI-generated trend analysis |
+| completed_at | INTEGER | **NULL = incomplete → triggers Review Gate lock** |
 
-### 4.2 关联表
+### 4.2 Relation Table
 
-#### `event_links` — 跨维度关联（产品灵魂）
+#### `event_links` — Cross-domain correlation (the soul of the product)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| Field | Type | Description |
+|-------|------|-------------|
 | source_event_id | TEXT FK | → events |
 | target_event_id | TEXT FK | → events |
 | link_type | TEXT | caused / related / derived |
-| confidence | REAL | 0~1，AI 置信度；1.0 = 人工确认 |
+| confidence | REAL | 0–1, AI confidence score; 1.0 = human-confirmed |
 | created_by | TEXT | rule / ai / human |
 
-关联示例：`Input（竞品分析）→ caused → Output（动态定价 Feature）→ derived → Financial（$99 收入）`
+Example chain: `Input (competitor analysis) → caused → Output (dynamic pricing feature) → derived → Financial ($99 revenue)`
 
 ---
 
-## 5. AI 分类层
+## 5. AI Classification Layer
 
-### 分类机制：规则优先 + AI 兜底（混合模式）
+### Classification Strategy: Rules-first + AI Fallback (Hybrid)
 
-**规则层**（无需 AI，覆盖 ~80% 场景）：
-- GitHub webhook → pillar: OUTPUT，自动按 repo 名归入 Project
+**Rule layer** (no AI required, covers ~80% of events):
+- GitHub webhook → pillar: OUTPUT, auto-assigned to project by repo name
 - Stripe webhook → pillar: FINANCIAL
-- CLI 带 `-p` 参数 → 用户指定 pillar
+- CLI with `-p` flag → user-specified pillar
 
-**AI 层**（兜底未匹配的 CLI 自由输入）：
+**AI layer** (fallback for unstructured CLI free-text input):
 
-Server 暴露两个统一端点，分类器外挂：
+The server exposes two unified endpoints. The classifier is external and pluggable:
 
 ```
-GET  /api/entries?status=pending   # 拉取待分类条目
-POST /api/events/batch             # 批量写回分类结果
+GET  /api/entries?status=pending   # Fetch unclassified entries
+POST /api/events/batch             # Write back classification results
 ```
 
-### 两种 AI 分类模式
+### Two AI Classification Modes
 
-**模式 1：API Key 模式**
-- 用户在 `~/.soloos/config.json` 配置任意 OpenAI-compatible API Key
-- Server 自动调用，全异步，无需人工触发
-- 支持 OpenAI / Anthropic / 本地模型等任意 provider
+**Mode 1: API Key**
+- User configures any OpenAI-compatible API key in `~/.soloos/config.json`
+- Server calls the API asynchronously — no manual trigger needed
+- Supports OpenAI, Anthropic, local models, any compatible provider
 
-**模式 2：Agent Skill 模式**
-- SoloOS 提供 Claude Code Skill（`soloos-classifier`）
-- 用户安装到自己的 Claude Code Agent，定时或手动触发
-- Skill 拉取 pending entries → Claude 分类 → 批量回写
-- 适合已在使用 Claude Code 的用户，借用现有会话
+**Mode 2: Agent Skill**
+- SoloOS ships a Claude Code skill (`soloos-classifier`)
+- User installs it into their Claude Code agent; runs on a schedule or manually
+- Skill pulls pending entries → classifies via Claude → batch writes back events
+- Ideal for users already running Claude Code — reuses their existing session
 
 ---
 
-## 6. UI 设计
+## 6. UI Design
 
-### 导航模型
+### Navigation Model
 
-三层递进，混合路由 + 侧滑面板：
+Three layers, progressive depth — page routing + slide-over panel:
 
 ```
-Cockpit (/)  →[点击支柱/项目]→  Explorer (/explorer)  →[点击事件]→  Sheet 侧滑 (Node)
+Cockpit (/)  →[click pillar/project]→  Explorer (/explorer)  →[click event]→  Sheet slide-over (Node)
 ```
 
-Node 层使用 shadcn `<Sheet side="right">` 叠加在 Explorer 上，保留上下文。
+The Node layer uses shadcn `<Sheet side="right">` — overlays Explorer without losing context.
 
-### 第一层：Cockpit（宏观态势）
+### Layer 1: Cockpit (Macro overview)
 
-路由：`/`
+Route: `/`
 
-- **五边形 Radar Chart**（Recharts RadarChart）：实时显示五支柱平衡度
-- **Pulse 指标卡**（shadcn Card）：现金流斜率、产能速率、用户增长率
-- **30 日 Sparklines**：各支柱波动趋势
-- **Review Gate**：`completed_at = NULL` 时整个 Cockpit 替换为 `<ReviewGate />` 强制复盘页
+- **Pentagon Radar Chart** (Recharts RadarChart): live five-pillar balance
+- **Pulse metric cards** (shadcn Card): cash flow slope, commit velocity, audience growth rate
+- **30-day Sparklines**: per-pillar trend over the past month
+- **Review Gate**: when `completed_at = NULL`, entire Cockpit is replaced by `<ReviewGate />` — forces retrospective before unlocking
 
-### 第二层：Explorer（实体管理）
+### Layer 2: Explorer (Entity management)
 
-路由：`/explorer`
+Route: `/explorer`
 
-- **Tabs**（shadcn Tabs）：Projects | Pillars 两个视图
-- **Projects 视图**：Bento Grid 项目卡片，显示 ROI、事件数、各 Pillar 分布
-  - 卡片点击进入该项目的事件时间流
-  - AI 发现潜在新项目时，出现虚线"待确认"卡片
-- **Pillars 视图**：按支柱分组的事件时间流（ScrollArea）
-- **手动关联**：顶部按钮触发 Dialog，支持 `solo p link <event_id> <project_id>`
+- **Tabs** (shadcn Tabs): Projects | Pillars
+- **Projects view**: Bento Grid project cards showing ROI, event count, per-pillar distribution
+  - Click card → project-scoped event timeline
+  - AI-discovered potential projects appear as dashed "pending confirmation" cards
+- **Pillars view**: Events timeline grouped by pillar (ScrollArea)
+- **Manual link**: top-bar button opens Dialog for `solo p link <event_id> <project_id>`
 
-### 第三层：Node（原子详情）
+### Layer 3: Node (Atomic detail)
 
-触发：点击任意 Event → `<Sheet side="right">` 滑入
+Trigger: click any Event → `<Sheet side="right">` slides in
 
-- **事件内容**：原始 content + 来源 + 时间
-- **关联链路**：可视化展示 `event_links`（Input → Output → Financial 的因果链）
-- **校准面板**：
-  - AI 置信度显示
-  - 确认关联 / 断开 / 手动调整
-  - `confidence = 1.0` 代表人工确认，成为 Fine-tuning 数据
+- **Event content**: raw content + source + timestamp
+- **Relation chain**: visualizes `event_links` (Input → Output → Financial causal path)
+- **Calibration panel**:
+  - AI confidence score displayed
+  - Confirm link / Disconnect / Adjust manually
+  - `confidence = 1.0` marks human-confirmed — becomes fine-tuning signal
 
-### 全局 Layout Shell
+### Global Layout Shell
 
-- 固定图标侧边栏（52px）：Cockpit / Explorer / Review / Settings
-- 顶部状态条：当前系统健康状态 + 本周 Review 状态
+- Fixed icon sidebar (52px): Cockpit / Explorer / Review / Settings
+- Top status bar: system health summary + current week Review status
 
-### shadcn 组件映射
+### shadcn Component Mapping
 
-| 功能 | 组件 |
-|------|------|
-| 项目卡片 / 指标卡 | `Card` |
-| Explorer 视图切换 | `Tabs` |
-| Node 详情面板 | `Sheet side="right"` |
-| Pillar 标签 | `Badge` variant |
-| 手动关联 | `Dialog` |
-| 事件列表 | `ScrollArea` |
-| 关联确认按钮 | `Button` variant |
-| Review Gate | 全屏替换组件 |
+| Feature | Component |
+|---------|-----------|
+| Project cards / metric cards | `Card` |
+| Explorer view switch | `Tabs` |
+| Node detail panel | `Sheet side="right"` |
+| Pillar labels | `Badge` variant |
+| Manual link dialog | `Dialog` |
+| Event list | `ScrollArea` |
+| Link confirmation buttons | `Button` variant |
+| Review Gate | Full-screen replacement component |
 
 ---
 
-## 7. MVP 最小可行范围（V1）
+## 7. MVP Scope (V1)
 
-V1 目标：**CLI 写入一条 Entry，Dashboard 上看到产能曲线和财务曲线联动**。
+**V1 goal**: write one Entry via CLI, see productivity and revenue curves move together on the Dashboard.
 
-### V1 包含
+### V1 Includes
 
-1. **数据层**：完整 SQLite schema（5 张表）+ Drizzle ORM
-2. **Server**：`POST /api/entries`、`GET /api/events`、`GET /api/projects`、Webhook 接收（GitHub / Stripe）
-3. **规则分类器**：GitHub → OUTPUT，Stripe → FINANCIAL，自动项目归因
-4. **CLI**：`solo capture "内容"` 写入 Entry，`solo capture -p input "内容"` 指定 Pillar
-5. **Cockpit**：Radar Chart + 3 个 Pulse 指标卡 + Review Gate 逻辑
-6. **Explorer**：Projects Bento Grid + 事件时间流
-7. **Node**：Sheet 侧滑，显示事件详情 + 基础关联链路
+1. **Data layer**: Complete SQLite schema (5 tables) + Drizzle ORM migrations
+2. **Server**: `POST /api/entries`, `GET /api/events`, `GET /api/projects`, webhook ingestion (GitHub / Stripe)
+3. **Rule classifier**: GitHub → OUTPUT, Stripe → FINANCIAL, auto project attribution by repo name
+4. **CLI**: `solo capture "content"` writes Entry; `solo capture -p input "content"` specifies pillar
+5. **Cockpit**: Radar Chart + 3 Pulse metric cards + Review Gate logic
+6. **Explorer**: Projects Bento Grid + event timeline
+7. **Node**: Sheet slide-over with event detail + basic relation chain
 
-### V2（后续迭代）
+### V2 (Later iterations)
 
-- AI 分类（模式 1：API Key 配置）
-- AI 分类（模式 2：Claude Code Skill）
-- 跨 Pillar 关联图谱（event_links 可视化）
-- Weekly Review AI Insight 生成
-- 浏览器插件（URL 摄入）
-- 30 日 Sparklines 趋势图
+- AI classification — Mode 1 (API Key)
+- AI classification — Mode 2 (Claude Code Skill)
+- Cross-pillar relation graph visualization
+- Weekly Review AI Insight generation
+- Browser extension (URL ingestion)
+- 30-day Sparklines trend charts
 
 ---
 
-## 8. 关键设计约束
+## 8. Key Design Constraints
 
-1. **本地优先**：所有数据存本地，无网络依赖（AI 分类除外，且可选）
-2. **数据不可变**：Entry 写入后不修改，Event 是加工层
-3. **Review Gate 是行为约束**：不是提醒，是物理锁定——未完成复盘则 Cockpit 不可访问
-4. **Project 不需人工维护**：通过 `match_rules` 自动聚合，人工只需在 Review 时校准
-5. **分类器是开放接口**：任何外部程序都可以通过两个端点接入，不绑定特定 AI
+1. **Local-first**: All data stored locally; no network dependency (AI classification is optional and external)
+2. **Immutable entries**: Entries are never modified after write; Events are the processing layer
+3. **Review Gate is a hard lock**: Not a reminder — Cockpit is physically inaccessible until the review is completed
+4. **Projects require no manual maintenance**: Aggregated via `match_rules`; human only calibrates during Review
+5. **Classifier is an open interface**: Any external process can plug in via the two endpoints — not bound to any specific AI provider
