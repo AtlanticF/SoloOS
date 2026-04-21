@@ -1,0 +1,4 @@
+{"type":"server-started","port":52351,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:52351","screen_dir":"/Users/matt/AI/SoloOS/.superpowers/brainstorm/94337-1776749489/content","state_dir":"/Users/matt/AI/SoloOS/.superpowers/brainstorm/94337-1776749489/state"}
+{"type":"screen-added","file":"/Users/matt/AI/SoloOS/.superpowers/brainstorm/94337-1776749489/content/overview.html"}
+{"type":"screen-added","file":"/Users/matt/AI/SoloOS/.superpowers/brainstorm/94337-1776749489/content/mvp-scope.html"}
+{"type":"server-stopped","reason":"idle timeout"}

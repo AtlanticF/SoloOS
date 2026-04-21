@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoloOS Design System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0a;
+    color: #e4e4e7;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+  h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #52525b; margin-bottom: 16px; margin-top: 40px; }
+  h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+
+  .subtitle { color: #71717a; font-size: 13px; margin-bottom: 40px; }
+
+  .tag {
+    display: inline-block;
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #71717a;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  /* ── INSPIRATION ROW ── */
+  .inspiration {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .inspo-card {
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .inspo-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #52525b;
+    margin-bottom: 12px;
+  }
+  .inspo-trait {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #a1a1aa;
+  }
+  .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+
+  /* ── RULE CARDS ── */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .rule-card {
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .rule-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .rule-card.typography::before { background: #6366f1; }
+  .rule-card.color::before { background: #10b981; }
+  .rule-card.density::before { background: #f59e0b; }
+  .rule-card.motion::before { background: #8b5cf6; }
+  .rule-card.interaction::before { background: #3b82f6; }
+  .rule-card.data::before { background: #ef4444; }
+
+  .rule-number {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #3f3f46;
+    margin-bottom: 10px;
+  }
+  .rule-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .rule-body { font-size: 11px; color: #71717a; line-height: 1.6; }
+  .rule-example {
+    margin-top: 10px;
+    background: #0d0d0d;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #a1a1aa;
+    line-height: 1.7;
+  }
+
+  /* ── COLOR SYSTEM ── */
+  .color-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch-block {
+    width: 48px; height: 48px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .swatch-label { font-size: 9px; color: #52525b; font-family: monospace; }
+
+  /* ── PILLAR COLORS ── */
+  .pillar-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .pillar-chip {
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .pillar-chip .name { font-size: 11px; font-weight: 600; margin-top: 6px; }
+  .pillar-chip .hex { font-size: 9px; font-family: monospace; opacity: 0.6; margin-top: 2px; }
+
+  /* ── TYPOGRAPHY ── */
+  .type-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .type-sample {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #18181b;
+  }
+  .type-sample:last-child { border-bottom: none; padding-bottom: 0; }
+  .type-meta { width: 100px; flex-shrink: 0; font-size: 10px; color: #3f3f46; font-family: monospace; }
+
+  /* ── COCKPIT MOCKUP ── */
+  .mockup-shell {
+    background: #0a0a0a;
+    border: 1px solid #1e1e22;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .mock-titlebar {
+    background: #0d0d0d;
+    border-bottom: 1px solid #18181b;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .traffic { width: 10px; height: 10px; border-radius: 50%; }
+  .mock-body { display: flex; min-height: 400px; }
+  .mock-sidebar {
+    width: 48px;
+    background: #0d0d0d;
+    border-right: 1px solid #18181b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 4px;
+  }
+  .nav-icon {
+    width: 32px; height: 32px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    color: #52525b;
+  }
+  .nav-icon.active { background: #18181b; color: #e4e4e7; }
+  .mock-main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* top bar */
+  .mock-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-title { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
+  .spacer { flex: 1; }
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #71717a;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* cockpit grid */
+  .cockpit-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px;
+  }
+  .radar-card {
+    grid-row: 1 / 3;
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #52525b; align-self: flex-start; }
+
+  /* SVG radar */
+  .pulse-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .pulse-card {
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .pulse-label { font-size: 10px; color: #52525b; margin-bottom: 4px; }
+  .pulse-value { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; font-family: 'JetBrains Mono', monospace; }
+  .pulse-delta { font-size: 10px; margin-top: 2px; }
+
+  /* event strip */
+  .event-strip {
+    background: #111;
+    border: 1px solid #1e1e22;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .event-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid #18181b;
+    font-size: 11px;
+  }
+  .event-row:last-child { border-bottom: none; }
+  .pillar-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .event-content { color: #a1a1aa; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-time { color: #3f3f46; flex-shrink: 0; font-family: monospace; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<h1>SoloOS Design System</h1>
+<p class="subtitle">Inspired by Claude's warmth + Cursor's developer density — modern, minimal, data-first.</p>
+
+<!-- INSPIRATION -->
+<h2>What We Take From Each</h2>
+<div class="inspiration">
+  <div class="inspo-card">
+    <div class="inspo-label">Claude Dashboard</div>
+    <div class="inspo-trait"><div class="dot" style="background:#a78bfa;"></div> Clean typographic hierarchy — information breathes</div>
+    <div class="inspo-trait"><div class="dot" style="background:#a78bfa;"></div> Neutral dark surface, not pitch black (#0d0d0d not #000)</div>
+    <div class="inspo-trait"><div class="dot" style="background:#a78bfa;"></div> Subtle borders (1px, low opacity) over heavy shadows</div>
+    <div class="inspo-trait"><div class="dot" style="background:#a78bfa;"></div> Generous micro-spacing inside cards</div>
+    <div class="inspo-trait"><div class="dot" style="background:#a78bfa;"></div> Muted accent colors — never neon</div>
+  </div>
+  <div class="inspo-card">
+    <div class="inspo-label">Cursor Dashboard</div>
+    <div class="inspo-trait"><div class="dot" style="background:#38bdf8;"></div> Developer-density: more information per pixel</div>
+    <div class="inspo-trait"><div class="dot" style="background:#38bdf8;"></div> Monospace for data values — creates "terminal" trust</div>
+    <div class="inspo-trait"><div class="dot" style="background:#38bdf8;"></div> Icon-only sidebar — maximizes canvas width</div>
+    <div class="inspo-trait"><div class="dot" style="background:#38bdf8;"></div> Command palette as primary navigation primitive</div>
+    <div class="inspo-trait"><div class="dot" style="background:#38bdf8;"></div> Status indicators: colored dots, not heavy badges</div>
+  </div>
+</div>
+
+<!-- DESIGN RULES -->
+<h2>6 Core Design Rules</h2>
+<div class="rules-grid">
+
+  <div class="rule-card typography">
+    <div class="rule-number">Rule 01 — Typography</div>
+    <div class="rule-title">Two-font system, strict roles</div>
+    <div class="rule-body">Inter for all UI copy. JetBrains Mono for all data values, timestamps, IDs, and metrics. Never mix roles.</div>
+    <div class="rule-example">
+      <span style="color:#6366f1;">Inter</span> → labels, headings, body<br>
+      <span style="color:#6366f1;">JetBrains Mono</span> → $2,400 · 14d · 0.92
+    </div>
+  </div>
+
+  <div class="rule-card color">
+    <div class="rule-number">Rule 02 — Color</div>
+    <div class="rule-title">Zinc scale + 5 pillar accents</div>
+    <div class="rule-body">Base palette is zinc (warm neutral). Each pillar owns one accent color used consistently — in badges, chart axes, and card borders.</div>
+    <div class="rule-example">
+      <span style="color:#10b981;">■</span> Input &nbsp;&nbsp;<span style="color:#6366f1;">■</span> Output<br>
+      <span style="color:#f59e0b;">■</span> Audience &nbsp;<span style="color:#ef4444;">■</span> Financial<br>
+      <span style="color:#8b5cf6;">■</span> Energy
+    </div>
+  </div>
+
+  <div class="rule-card density">
+    <div class="rule-number">Rule 03 — Density</div>
+    <div class="rule-title">Developer density, not consumer spacing</div>
+    <div class="rule-body">Padding inside cards: 14–20px. Row height: 32px. No wasted vertical space. Information should be scannable in one eye movement per card.</div>
+    <div class="rule-example">
+      card-padding: 14px–20px<br>
+      row-height: 32px<br>
+      gap: 8px–12px (not 24px+)
+    </div>
+  </div>
+
+  <div class="rule-card motion">
+    <div class="rule-number">Rule 04 — Motion</div>
+    <div class="rule-title">Purposeful only — no decorative animation</div>
+    <div class="rule-body">Only two animations: Sheet slide-in (180ms ease-out) and number counters on load. No hover float, no logo pulse. Motion means "something changed."</div>
+    <div class="rule-example">
+      Sheet: 180ms ease-out<br>
+      Number update: 300ms<br>
+      Hover: opacity 0.7→1 only
+    </div>
+  </div>
+
+  <div class="rule-card interaction">
+    <div class="rule-number">Rule 05 — Interaction</div>
+    <div class="rule-title">Keyboard-first, command palette as spine</div>
+    <div class="rule-body">⌘K opens command palette from anywhere. Every action is reachable in ≤2 keystrokes. Mouse is optional. Inspired by Cursor's core interaction model.</div>
+    <div class="rule-example">
+      ⌘K → command palette<br>
+      ⌘C → capture entry<br>
+      ⌘R → start review<br>
+      / → filter current view
+    </div>
+  </div>
+
+  <div class="rule-card data">
+    <div class="rule-number">Rule 06 — Data Viz</div>
+    <div class="rule-title">Minimal chrome, maximum signal</div>
+    <div class="rule-body">Radar chart: no gridlines, filled polygon, pillar-colored axes. Sparklines: no axes, just the line. Every pixel serves data, not decoration.</div>
+    <div class="rule-example">
+      Radar: filled + stroke, no grid<br>
+      Sparklines: line only, no axes<br>
+      Bar: 2px radius, no labels
+    </div>
+  </div>
+
+</div>
+
+<!-- PILLAR COLORS -->
+<h2>Pillar Color System</h2>
+<div class="pillar-strip">
+  <div class="pillar-chip" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);">
+    <div style="width:28px;height:28px;background:#10b981;border-radius:6px;margin:0 auto;"></div>
+    <div class="name" style="color:#10b981;">Input</div>
+    <div class="hex">#10b981</div>
+  </div>
+  <div class="pillar-chip" style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);">
+    <div style="width:28px;height:28px;background:#6366f1;border-radius:6px;margin:0 auto;"></div>
+    <div class="name" style="color:#6366f1;">Output</div>
+    <div class="hex">#6366f1</div>
+  </div>
+  <div class="pillar-chip" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);">
+    <div style="width:28px;height:28px;background:#f59e0b;border-radius:6px;margin:0 auto;"></div>
+    <div class="name" style="color:#f59e0b;">Audience</div>
+    <div class="hex">#f59e0b</div>
+  </div>
+  <div class="pillar-chip" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);">
+    <div style="width:28px;height:28px;background:#ef4444;border-radius:6px;margin:0 auto;"></div>
+    <div class="name" style="color:#ef4444;">Financial</div>
+    <div class="hex">#ef4444</div>
+  </div>
+  <div class="pillar-chip" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);">
+    <div style="width:28px;height:28px;background:#8b5cf6;border-radius:6px;margin:0 auto;"></div>
+    <div class="name" style="color:#8b5cf6;">Energy</div>
+    <div class="hex">#8b5cf6</div>
+  </div>
+</div>
+
+<!-- TYPOGRAPHY SCALE -->
+<h2>Typography Scale</h2>
+<div class="type-row">
+  <div class="type-sample">
+    <div class="type-meta">display / 20px</div>
+    <div style="font-size:20px;font-weight:600;letter-spacing:-0.5px;">SoloOS Cockpit</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-meta">heading / 14px</div>
+    <div style="font-size:14px;font-weight:600;letter-spacing:-0.3px;">Weekly Balance Report</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-meta">label / 11px caps</div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#52525b;">Financial · 7d</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-meta">body / 13px</div>
+    <div style="font-size:13px;color:#a1a1aa;">Discovered a new OpenAI pricing model relevant to Amigogo</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-meta">mono value / 20px</div>
+    <div style="font-size:20px;font-weight:700;font-family:monospace;letter-spacing:-0.5px;">+$2,400</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-meta">mono meta / 10px</div>
+    <div style="font-size:10px;font-family:monospace;color:#52525b;">2026-04-21 · 09:14 · github-skill</div>
+  </div>
+</div>
+
+<!-- COCKPIT MOCKUP -->
+<h2>Cockpit — Actual Rendering Preview</h2>
+<div class="mockup-shell">
+  <div class="mock-titlebar">
+    <div class="traffic" style="background:#ef4444;"></div>
+    <div class="traffic" style="background:#f59e0b;"></div>
+    <div class="traffic" style="background:#10b981;"></div>
+    <span style="font-size:11px;color:#52525b;margin-left:8px;font-family:monospace;">SoloOS — localhost:5173</span>
+  </div>
+  <div class="mock-body">
+    <div class="mock-sidebar">
+      <div class="nav-icon" style="margin-bottom:8px;color:#e4e4e7;font-size:11px;font-weight:700;">S</div>
+      <div class="nav-icon active">⬡</div>
+      <div class="nav-icon">⊞</div>
+      <div class="nav-icon">◎</div>
+      <div style="flex:1;"></div>
+      <div class="nav-icon">⚙</div>
+    </div>
+    <div class="mock-main">
+      <!-- topbar -->
+      <div class="mock-topbar">
+        <span class="page-title">Cockpit</span>
+        <span style="font-size:11px;color:#52525b;font-family:monospace;">W17 · 2026</span>
+        <div class="spacer"></div>
+        <div class="status-pill">
+          <div class="status-dot" style="background:#10b981;box-shadow:0 0 6px #10b981;"></div>
+          All systems nominal
+        </div>
+        <div class="status-pill" style="border-color:#f59e0b33;color:#f59e0b;">
+          <div class="status-dot" style="background:#f59e0b;"></div>
+          Review pending
+        </div>
+      </div>
+
+      <!-- cockpit grid -->
+      <div class="cockpit-grid">
+        <!-- Radar -->
+        <div class="radar-card">
+          <div class="card-label">Balance</div>
+          <svg width="160" height="160" viewBox="0 0 160 160">
+            <!-- axes -->
+            <line x1="80" y1="80" x2="80" y2="16" stroke="#27272a" stroke-width="1"/>
+            <line x1="80" y1="80" x2="138" y2="114" stroke="#27272a" stroke-width="1"/>
+            <line x1="80" y1="80" x2="113" y2="152" stroke="#27272a" stroke-width="1"/>
+            <line x1="80" y1="80" x2="47" y2="152" stroke="#27272a" stroke-width="1"/>
+            <line x1="80" y1="80" x2="22" y2="114" stroke="#27272a" stroke-width="1"/>
+            <!-- rings -->
+            <polygon points="80,48 109,66 109,100 80,118 51,100 51,66" fill="none" stroke="#1e1e22" stroke-width="1"/>
+            <polygon points="80,32 121,57 121,107 80,132 39,107 39,57" fill="none" stroke="#1e1e22" stroke-width="1"/>
+            <!-- data: Input=0.82, Output=0.65, Audience=0.45, Financial=0.88, Energy=0.30 -->
+            <polygon
+              points="80,29 129,61 115,131 56,147 31,109"
+              fill="rgba(99,102,241,0.12)"
+              stroke="#6366f1"
+              stroke-width="1.5"
+              stroke-linejoin="round"/>
+            <!-- axis dots -->
+            <circle cx="80" cy="29" r="3" fill="#10b981"/>
+            <circle cx="129" cy="61" r="3" fill="#6366f1"/>
+            <circle cx="115" cy="131" r="3" fill="#f59e0b"/>
+            <circle cx="56" cy="147" r="3" fill="#ef4444"/>
+            <circle cx="31" cy="109" r="3" fill="#8b5cf6"/>
+            <!-- labels -->
+            <text x="80" y="10" text-anchor="middle" fill="#10b981" font-size="8" font-family="Inter, sans-serif" font-weight="600">INPUT</text>
+            <text x="152" y="60" text-anchor="start" fill="#6366f1" font-size="8" font-family="Inter, sans-serif" font-weight="600">OUTPUT</text>
+            <text x="128" y="158" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="Inter, sans-serif" font-weight="600">AUDIENCE</text>
+            <text x="30" y="158" text-anchor="middle" fill="#ef4444" font-size="8" font-family="Inter, sans-serif" font-weight="600">FINANCIAL</text>
+            <text x="4" y="60" text-anchor="start" fill="#8b5cf6" font-size="8" font-family="Inter, sans-serif" font-weight="600">ENERGY</text>
+          </svg>
+          <!-- pillar mini scores -->
+          <div style="width:100%;display:flex;flex-direction:column;gap:5px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:#52525b;width:54px;">Input</span>
+              <div style="flex:1;height:3px;background:#18181b;border-radius:2px;"><div style="width:82%;height:100%;background:#10b981;border-radius:2px;"></div></div>
+              <span style="font-size:9px;font-family:monospace;color:#10b981;">0.82</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:#52525b;width:54px;">Output</span>
+              <div style="flex:1;height:3px;background:#18181b;border-radius:2px;"><div style="width:65%;height:100%;background:#6366f1;border-radius:2px;"></div></div>
+              <span style="font-size:9px;font-family:monospace;color:#6366f1;">0.65</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:#52525b;width:54px;">Audience</span>
+              <div style="flex:1;height:3px;background:#18181b;border-radius:2px;"><div style="width:45%;height:100%;background:#f59e0b;border-radius:2px;"></div></div>
+              <span style="font-size:9px;font-family:monospace;color:#f59e0b;">0.45</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:#52525b;width:54px;">Financial</span>
+              <div style="flex:1;height:3px;background:#18181b;border-radius:2px;"><div style="width:88%;height:100%;background:#ef4444;border-radius:2px;"></div></div>
+              <span style="font-size:9px;font-family:monospace;color:#ef4444;">0.88</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:#52525b;width:54px;">Energy</span>
+              <div style="flex:1;height:3px;background:#18181b;border-radius:2px;"><div style="width:30%;height:100%;background:#8b5cf6;border-radius:2px;"></div></div>
+              <span style="font-size:9px;font-family:monospace;color:#8b5cf6;"><b>0.30 ⚠</b></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pulse cards -->
+        <div class="pulse-row">
+          <div class="pulse-card">
+            <div class="pulse-label">Cash Flow (7d)</div>
+            <div class="pulse-value" style="color:#ef4444;">+$2,400</div>
+            <div class="pulse-delta" style="color:#10b981;">↑ 18% vs last week</div>
+          </div>
+          <div class="pulse-card">
+            <div class="pulse-label">Commits (7d avg)</div>
+            <div class="pulse-value" style="color:#6366f1;">14</div>
+            <div class="pulse-delta" style="color:#52525b;">→ stable</div>
+          </div>
+          <div class="pulse-card" style="border-color:#8b5cf644;">
+            <div class="pulse-label" style="color:#8b5cf6;">⚠ Energy alert</div>
+            <div class="pulse-value" style="color:#8b5cf6;font-size:14px;">9 days</div>
+            <div class="pulse-delta" style="color:#71717a;">no rest detected</div>
+          </div>
+        </div>
+
+        <!-- Recent events strip -->
+        <div class="event-strip">
+          <div class="card-label" style="margin-bottom:8px;">Recent Events</div>
+          <div class="event-row">
+            <div class="pillar-badge" style="background:rgba(99,102,241,0.15);color:#6366f1;">OUTPUT</div>
+            <div class="event-content">feat: add dynamic pricing to Amigogo checkout</div>
+            <div class="event-time">09:14</div>
+          </div>
+          <div class="event-row">
+            <div class="pillar-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">FINANCIAL</div>
+            <div class="event-content">Stripe: +$99.00 · Amigogo Pro subscription</div>
+            <div class="event-time">08:52</div>
+          </div>
+          <div class="event-row">
+            <div class="pillar-badge" style="background:rgba(16,185,129,0.15);color:#10b981;">INPUT</div>
+            <div class="event-content">OpenAI cuts API pricing 40% — revisit cost model</div>
+            <div class="event-time">07:30</div>
+          </div>
+          <div class="event-row">
+            <div class="pillar-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;">AUDIENCE</div>
+            <div class="event-content">Twitter: +47 followers after pricing thread</div>
+            <div class="event-time">Yesterday</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:32px;color:#3f3f46;font-size:11px;text-align:center;">SoloOS Design System v1 · 2026-04-21</p>
+
+</body>
+</html>

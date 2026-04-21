@@ -1,0 +1,115 @@
+<h2>数据模型设计</h2>
+<p class="subtitle">4 张核心表 + 1 张关联表，SQLite + Drizzle ORM</p>
+
+<div class="section">
+  <div class="label">实体关系总览</div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:8px;padding:10px 16px;font-size:13px;text-align:center;">
+      <div style="font-weight:700;">Entry</div>
+      <div style="font-size:11px;color:var(--text-muted);">原始输入</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);">→ AI/规则 →</div>
+    <div style="background:#1a1a2a;border:1px solid #2196f3;border-radius:8px;padding:10px 16px;font-size:13px;text-align:center;">
+      <div style="font-weight:700;">Event</div>
+      <div style="font-size:11px;color:var(--text-muted);">核心原子</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);">N:1</div>
+    <div style="background:#2a1a1a;border:1px solid #f44336;border-radius:8px;padding:10px 16px;font-size:13px;text-align:center;">
+      <div style="font-weight:700;">Pillar</div>
+      <div style="font-size:11px;color:var(--text-muted);">支柱标签</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);">N:1</div>
+    <div style="background:#2a2a1a;border:1px solid #ff9800;border-radius:8px;padding:10px 16px;font-size:13px;text-align:center;">
+      <div style="font-weight:700;">Project</div>
+      <div style="font-size:11px;color:var(--text-muted);">逻辑聚合</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:center;margin-top:8px;">
+    <div style="font-size:12px;color:var(--text-muted);">所有 Event 定期快照 → </div>
+    <div style="background:#2a1a2a;border:1px solid #9c27b0;border-radius:8px;padding:4px 12px;font-size:13px;margin-left:8px;font-weight:700;">Review</div>
+  </div>
+</div>
+
+<div class="section">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;border-top:2px solid #4caf50;">
+      <div style="font-weight:700;font-size:13px;color:#4caf50;margin-bottom:8px;">entries</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;color:#ccc;">
+        id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT PK</span><br>
+        content &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT NOT NULL</span><br>
+        source &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- cli/github/stripe/ext</span><br>
+        status &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- pending/processed</span><br>
+        quick_tags &nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- JSON array</span><br>
+        created_at &nbsp;<span style="color:#6a9955;">INTEGER</span> <span style="color:#ce9178;">-- unix timestamp</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">原始态、不可变。AI 处理前的裸数据。</div>
+    </div>
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;border-top:2px solid #2196f3;">
+      <div style="font-weight:700;font-size:13px;color:#2196f3;margin-bottom:8px;">events</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;color:#ccc;">
+        id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT PK</span><br>
+        entry_id &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT FK</span> <span style="color:#ce9178;">→ entries</span><br>
+        pillar &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- INPUT/OUTPUT/...</span><br>
+        project_id &nbsp;&nbsp;<span style="color:#6a9955;">TEXT FK?</span> <span style="color:#ce9178;">→ projects</span><br>
+        impact_score <span style="color:#6a9955;">INTEGER</span> <span style="color:#ce9178;">-- -10 to 10</span><br>
+        classifier &nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- rule/api-key/skill</span><br>
+        metadata &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- JSON</span><br>
+        occurred_at &nbsp;<span style="color:#6a9955;">INTEGER</span><br>
+        created_at &nbsp;&nbsp;<span style="color:#6a9955;">INTEGER</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">结构化、可修改。系统的核心原子。</div>
+    </div>
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;border-top:2px solid #ff9800;">
+      <div style="font-weight:700;font-size:13px;color:#ff9800;margin-bottom:8px;">projects</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;color:#ccc;">
+        id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT PK</span><br>
+        name &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT NOT NULL</span><br>
+        status &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- active/dormant/done</span><br>
+        match_rules &nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- JSON: repo/tag 规则</span><br>
+        is_auto &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">INTEGER</span> <span style="color:#ce9178;">-- 0/1</span><br>
+        first_event_at <span style="color:#6a9955;">INTEGER</span><br>
+        last_event_at &nbsp;<span style="color:#6a9955;">INTEGER</span><br>
+        created_at &nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">INTEGER</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">逻辑聚合器，ROI 从 events 实时计算。</div>
+    </div>
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;border-top:2px solid #9c27b0;">
+      <div style="font-weight:700;font-size:13px;color:#9c27b0;margin-bottom:8px;">reviews</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;color:#ccc;">
+        id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT PK</span><br>
+        period &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- weekly/monthly</span><br>
+        period_start <span style="color:#6a9955;">INTEGER</span><br>
+        period_end &nbsp;&nbsp;<span style="color:#6a9955;">INTEGER</span><br>
+        snapshot &nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- JSON 快照</span><br>
+        reflection &nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- 用户手写</span><br>
+        ai_insight &nbsp;<span style="color:#6a9955;">TEXT</span> <span style="color:#ce9178;">-- AI 生成</span><br>
+        completed_at <span style="color:#6a9955;">INTEGER</span> <span style="color:#ce9178;">-- NULL = 未完成(锁定)</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;"><code>completed_at = NULL</code> → Review Gate 触发锁定。</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">1 张关联表：事件跨维度链接</div>
+  <div style="background:var(--surface-raised);border-radius:8px;padding:14px;margin-top:8px;">
+    <div style="font-weight:700;font-size:13px;color:#4ec9b0;margin-bottom:8px;">event_links &nbsp;<span style="font-weight:400;color:var(--text-muted);font-size:12px;">— 产品灵魂：跨 Pillar 关联</span></div>
+    <div style="font-family:monospace;font-size:11px;line-height:2;color:#ccc;">
+      source_event_id &nbsp;<span style="color:#6a9955;">TEXT FK → events</span><br>
+      target_event_id &nbsp;<span style="color:#6a9955;">TEXT FK → events</span><br>
+      link_type &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> &nbsp;<span style="color:#ce9178;">-- caused/related/derived</span><br>
+      confidence &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">REAL</span> &nbsp;<span style="color:#ce9178;">-- AI 置信度 0~1，1=人工确认</span><br>
+      created_by &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">TEXT</span> &nbsp;<span style="color:#ce9178;">-- rule/ai/human</span>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+      示例：一篇竞品分析 (Input) <span style="color:#4ec9b0;">caused</span> 一个新 Feature (Output) <span style="color:#4ec9b0;">derived</span> 一笔收入 (Financial)
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:var(--text-muted);font-size:13px;">数据模型没问题？确认后进入 UI 设计（三层 Dashboard）。</p>

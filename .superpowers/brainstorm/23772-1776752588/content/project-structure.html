@@ -1,0 +1,75 @@
+<h2>项目结构方案</h2>
+<p class="subtitle">TS/Node 服务端 + React 客户端，两种组织方式</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Monorepo（推荐）</h3>
+      <p>pnpm workspace，server 和 web 各自独立，共享类型定义</p>
+      <div style="background:#111;border-radius:6px;padding:14px;margin-top:12px;font-family:monospace;font-size:12px;line-height:1.8;color:#ccc;">
+        <span style="color:#569cd6;">SoloOS/</span><br>
+        &nbsp;├── <span style="color:#4ec9b0;">apps/</span><br>
+        &nbsp;│&nbsp;&nbsp; ├── <span style="color:#ce9178;">server/</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># Hono + SQLite + AI</span><br>
+        &nbsp;│&nbsp;&nbsp; │&nbsp;&nbsp; ├── src/<br>
+        &nbsp;│&nbsp;&nbsp; │&nbsp;&nbsp; │&nbsp;&nbsp; ├── routes/<br>
+        &nbsp;│&nbsp;&nbsp; │&nbsp;&nbsp; │&nbsp;&nbsp; ├── db/<br>
+        &nbsp;│&nbsp;&nbsp; │&nbsp;&nbsp; │&nbsp;&nbsp; └── skills/<br>
+        &nbsp;│&nbsp;&nbsp; └── <span style="color:#ce9178;">web/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># Vite + React</span><br>
+        &nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; └── src/<br>
+        &nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ├── pages/<br>
+        &nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; └── components/<br>
+        &nbsp;├── <span style="color:#4ec9b0;">packages/</span><br>
+        &nbsp;│&nbsp;&nbsp; └── <span style="color:#ce9178;">shared/</span>&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># 共享 TS 类型</span><br>
+        &nbsp;└── package.json
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>优点</h4><ul><li>类型在 server/web 间共享</li><li>单命令启动全部</li><li>易扩展（CLI 也加进来）</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>初始配置多几行</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>双文件夹（极简）</h3>
+      <p>根目录直接放 server/ 和 web/，各自独立 package.json</p>
+      <div style="background:#111;border-radius:6px;padding:14px;margin-top:12px;font-family:monospace;font-size:12px;line-height:1.8;color:#ccc;">
+        <span style="color:#569cd6;">SoloOS/</span><br>
+        &nbsp;├── <span style="color:#ce9178;">server/</span><br>
+        &nbsp;│&nbsp;&nbsp; ├── src/<br>
+        &nbsp;│&nbsp;&nbsp; └── package.json<br>
+        &nbsp;├── <span style="color:#ce9178;">web/</span><br>
+        &nbsp;│&nbsp;&nbsp; ├── src/<br>
+        &nbsp;│&nbsp;&nbsp; └── package.json<br>
+        &nbsp;└── package.json&nbsp;<span style="color:#6a9955;"># 只有启动脚本</span>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>优点</h4><ul><li>结构最简单</li><li>零配置启动</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>类型需手动复制</li><li>后期加 CLI 麻烦</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;background:rgba(86,156,214,0.08);border:1px solid rgba(86,156,214,0.3);border-radius:8px;padding:16px;">
+  <div class="label">推荐技术选型（方案 A）</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">SERVER</div>
+      <div style="font-size:13px;"><strong>Hono</strong> — 轻量 TS-first，比 Express 快 3x</div>
+      <div style="font-size:13px;margin-top:4px;"><strong>Drizzle ORM</strong> — SQLite，类型安全</div>
+      <div style="font-size:13px;margin-top:4px;"><strong>Claude API</strong> — 异步分类</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">WEB</div>
+      <div style="font-size:13px;"><strong>Vite + React</strong> — 开发体验最快</div>
+      <div style="font-size:13px;margin-top:4px;"><strong>TanStack Query</strong> — 数据请求层</div>
+      <div style="font-size:13px;margin-top:4px;"><strong>Recharts</strong> — 雷达图 + 趋势图</div>
+    </div>
+  </div>
+  <div style="margin-top:12px;font-size:12px;color:var(--text-muted);">单命令启动：<code>pnpm dev</code> → server :3000 + web :5173 同时起来</div>
+</div>
+
+<p style="margin-top:16px;color:var(--text-muted);font-size:13px;">点击选择，或在终端告诉我你的想法。</p>

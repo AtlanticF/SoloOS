@@ -1,0 +1,52 @@
+<h2>MVP 边界：V1 到底包含什么？</h2>
+<p class="subtitle">你的文档在两处提到了 MVP，但有一个张力需要对齐</p>
+
+<div class="section" style="background: rgba(255,200,0,0.08); border: 1px solid rgba(255,200,0,0.3); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+  <div class="label" style="color: #ffc107;">⚡ 核心张力</div>
+  <p style="margin: 8px 0 0;">文档说 MVP "不需要复杂 AI 分析"，但同时描述了 AI 是"零阻力录入体验"的关键——没有 AI 自动分类，用户在 <code>solo capture</code> 时就必须手动打 Pillar 标签，这会产生摩擦。</p>
+</div>
+
+<p class="subtitle" style="margin-bottom: 16px;">V1 的分类机制，你倾向哪种？</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>规则驱动（无 AI）</h3>
+      <p>来源决定 Pillar：GitHub → Output，Stripe → Financial，CLI 手动指定 <code>-p input</code></p>
+      <div class="pros-cons" style="margin-top: 12px;">
+        <div class="pros"><h4>优点</h4><ul><li>V1 零 AI 依赖</li><li>100% 可预测</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>CLI 手动需带参数</li><li>无法处理模糊输入</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>AI 异步分类（轻 AI）</h3>
+      <p>先裸存 Entry，后台 Claude API 自动打 Pillar 标签，错误的在 Weekly Review 纠正</p>
+      <div class="pros-cons" style="margin-top: 12px;">
+        <div class="pros"><h4>优点</h4><ul><li>CLI 真正零摩擦</li><li>体现产品核心差异</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>V1 需接 AI API</li><li>分类有延迟</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合：规则优先 + AI 兜底</h3>
+      <p>已知来源（GitHub/Stripe）走规则；未知来源的 CLI 输入走 AI 分类</p>
+      <div class="pros-cons" style="margin-top: 12px;">
+        <div class="pros"><h4>优点</h4><ul><li>覆盖 80% 场景无需 AI</li><li>体验最完整</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>复杂度略高</li><li>需要同时维护两套逻辑</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <div class="label">我的建议</div>
+  <p>选 <strong>C（混合）</strong>。GitHub Commit 和 Stripe 交易天然有来源语义，规则覆盖最高频场景；CLI 手打的碎片化想法才是 AI 分类的价值所在。两套逻辑共存，但工程复杂度可控。</p>
+</div>
+
+<p style="margin-top: 16px; color: var(--text-muted); font-size: 13px;">点击选择，或直接在终端告诉我你的想法。</p>

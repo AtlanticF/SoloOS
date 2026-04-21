@@ -1,0 +1,80 @@
+<h2>系统架构 v2 — AI 分类层</h2>
+<p class="subtitle">分类机制作为开放接口，支持两种模式</p>
+
+<div class="section">
+  <div class="label">AI 分类层设计</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:16px;border:1px solid rgba(76,175,80,0.4);">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">模式 1：API Key 模式</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">用户配置自己的 LLM API Key，Server 直接调用</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;background:#111;border-radius:4px;padding:10px;color:#ccc;">
+        <span style="color:#6a9955;"># ~/.soloos/config.json</span><br>
+        {<br>
+        &nbsp;"classifier": {<br>
+        &nbsp;&nbsp;"provider": "openai",<br>
+        &nbsp;&nbsp;"api_key": "sk-...",<br>
+        &nbsp;&nbsp;"model": "gpt-4o-mini"<br>
+        &nbsp;}<br>
+        }
+      </div>
+      <div style="margin-top:12px;font-size:12px;">
+        <div style="color:#4caf50;margin-bottom:4px;">✓ 全自动，无需人工触发</div>
+        <div style="color:#4caf50;margin-bottom:4px;">✓ 支持任意 OpenAI-compatible API</div>
+        <div style="color:#f44336;">✗ 用户需自行管理 API Key</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface-raised);border-radius:8px;padding:16px;border:1px solid rgba(33,150,243,0.4);">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">模式 2：Agent Skill 模式</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">SoloOS 提供 Claude Code Skill，安装在用户 Agent 里定时执行</div>
+      <div style="font-family:monospace;font-size:11px;line-height:2;background:#111;border-radius:4px;padding:10px;color:#ccc;">
+        <span style="color:#6a9955;"># Claude Code 中安装</span><br>
+        /plugin install soloos-classifier<br>
+        <br>
+        <span style="color:#6a9955;"># Skill 内部逻辑：</span><br>
+        GET /api/entries?status=pending<br>
+        → Claude 分类处理<br>
+        → PATCH /api/events (批量回写)
+      </div>
+      <div style="margin-top:12px;font-size:12px;">
+        <div style="color:#4caf50;margin-bottom:4px;">✓ 借用用户现有 Claude 会话</div>
+        <div style="color:#4caf50;margin-bottom:4px;">✓ 可定时 / 可手动触发</div>
+        <div style="color:#f44336;">✗ 依赖用户运行 Claude Code</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Server 侧的统一接口</div>
+  <p style="font-size:13px;margin-top:8px;">不管哪种模式，Server 只暴露两个端点，分类结果从外部写入：</p>
+  <div style="font-family:monospace;font-size:12px;line-height:2;background:#111;border-radius:6px;padding:14px;color:#ccc;margin-top:8px;">
+    <span style="color:#569cd6;">GET</span>&nbsp; /api/entries?status=pending&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># 拉取待分类条目</span><br>
+    <span style="color:#569cd6;">POST</span> /api/events/batch&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># 批量写入分类结果</span>
+  </div>
+  <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">这样第三方也可以写自己的分类器接入，真正的开放接口。</p>
+</div>
+
+<div class="section">
+  <div class="label">完整数据流（v2）</div>
+  <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:6px;padding:6px 12px;font-size:12px;white-space:nowrap;">CLI / Webhook</div>
+      <div style="color:var(--text-muted);">→ Entry 写入 DB (status: pending)</div>
+    </div>
+    <div style="margin-left:20px;color:var(--text-muted);font-size:12px;">↓ 规则匹配（GitHub/Stripe → 直接成 Event）</div>
+    <div style="margin-left:20px;color:var(--text-muted);font-size:12px;">↓ 无规则匹配 → 留在 pending 队列</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="background:#1a1a2a;border:1px solid #2196f3;border-radius:6px;padding:6px 12px;font-size:12px;white-space:nowrap;">分类器（模式1或2）</div>
+      <div style="color:var(--text-muted);">→ 拉取 pending → 分类 → 写回 Event</div>
+    </div>
+    <div style="margin-left:20px;color:var(--text-muted);font-size:12px;">↓</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:6px;padding:6px 12px;font-size:12px;white-space:nowrap;">Weekly Review</div>
+      <div style="color:var(--text-muted);">→ 用户确认/纠正 AI 的关联</div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:var(--text-muted);font-size:13px;">这个架构准确吗？在终端确认，然后我们进入数据模型。</p>

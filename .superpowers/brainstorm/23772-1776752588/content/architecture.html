@@ -1,0 +1,122 @@
+<h2>系统架构设计</h2>
+<p class="subtitle">SoloOS — Monorepo，三层分离，本地运行</p>
+
+<div class="section">
+  <div class="label">整体数据流</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;">
+      <div style="font-size:18px;">⌨️</div>
+      <div style="font-weight:600;margin-top:4px;">CLI / API</div>
+      <div style="font-size:11px;color:var(--text-muted);">solo capture</div>
+    </div>
+    <div style="color:var(--text-muted);font-size:18px;">→</div>
+    <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;">
+      <div style="font-size:18px;">🔗</div>
+      <div style="font-weight:600;margin-top:4px;">Webhooks</div>
+      <div style="font-size:11px;color:var(--text-muted);">GitHub / Stripe</div>
+    </div>
+    <div style="color:var(--text-muted);font-size:18px;">→</div>
+    <div style="background:#1a1a2a;border:1px solid #2196f3;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;min-width:120px;">
+      <div style="font-size:18px;">🖥️</div>
+      <div style="font-weight:600;margin-top:4px;">Hono Server</div>
+      <div style="font-size:11px;color:var(--text-muted);">:3000</div>
+    </div>
+    <div style="color:var(--text-muted);font-size:18px;">→</div>
+    <div style="background:#2a1a1a;border:1px solid #f44336;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;">
+      <div style="font-size:18px;">🗄️</div>
+      <div style="font-weight:600;margin-top:4px;">SQLite</div>
+      <div style="font-size:11px;color:var(--text-muted);">soloos.db</div>
+    </div>
+    <div style="color:var(--text-muted);font-size:18px;">⇄</div>
+    <div style="background:#2a1a2a;border:1px solid #9c27b0;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;">
+      <div style="font-size:18px;">🤖</div>
+      <div style="font-weight:600;margin-top:4px;">Claude API</div>
+      <div style="font-size:11px;color:var(--text-muted);">异步分类</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:center;margin:8px 0;color:var(--text-muted);">↓</div>
+  <div style="display:flex;justify-content:center;">
+    <div style="background:#1a2a1a;border:1px solid #4caf50;border-radius:8px;padding:10px 14px;font-size:13px;text-align:center;min-width:160px;">
+      <div style="font-size:18px;">🌐</div>
+      <div style="font-weight:600;margin-top:4px;">React Web App</div>
+      <div style="font-size:11px;color:var(--text-muted);">:5173 → 打包后静态伺服</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Monorepo 结构</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;">
+      <div style="font-weight:600;font-size:13px;color:#ce9178;margin-bottom:8px;">📦 apps/server</div>
+      <div style="font-size:12px;line-height:2;color:var(--text-muted);">
+        <div><code>routes/entries</code></div>
+        <div><code>routes/events</code></div>
+        <div><code>routes/projects</code></div>
+        <div><code>routes/reviews</code></div>
+        <div><code>db/schema.ts</code></div>
+        <div><code>skills/classifier</code></div>
+        <div><code>skills/github</code></div>
+        <div><code>skills/stripe</code></div>
+      </div>
+    </div>
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;">
+      <div style="font-weight:600;font-size:13px;color:#4ec9b0;margin-bottom:8px;">📦 apps/web</div>
+      <div style="font-size:12px;line-height:2;color:var(--text-muted);">
+        <div><code>pages/cockpit</code></div>
+        <div><code>pages/explorer</code></div>
+        <div><code>pages/node</code></div>
+        <div><code>pages/review</code></div>
+        <div><code>components/radar</code></div>
+        <div><code>components/timeline</code></div>
+        <div><code>lib/api.ts</code></div>
+      </div>
+    </div>
+    <div style="background:var(--surface-raised);border-radius:8px;padding:14px;">
+      <div style="font-weight:600;font-size:13px;color:#569cd6;margin-bottom:8px;">📦 packages/shared</div>
+      <div style="font-size:12px;line-height:2;color:var(--text-muted);">
+        <div><code>types/entry.ts</code></div>
+        <div><code>types/event.ts</code></div>
+        <div><code>types/project.ts</code></div>
+        <div><code>types/pillar.ts</code></div>
+        <div><code>types/review.ts</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">关键设计决策</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+    <div style="display:flex;gap:12px;align-items:flex-start;background:var(--surface-raised);border-radius:6px;padding:12px;">
+      <div style="font-size:20px;flex-shrink:0;">⚡</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;">分类：规则优先 + AI 兜底</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">GitHub/Stripe webhook 走规则自动打标；CLI 手打内容异步丢给 Claude 分类，结果写回 Event</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;background:var(--surface-raised);border-radius:6px;padding:12px;">
+      <div style="font-size:20px;flex-shrink:0;">🔒</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;">Review Gate：周期性阻塞</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">未完成本周 Review 时，Cockpit 宏观看板锁定，只能看到提示页面</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;background:var(--surface-raised);border-radius:6px;padding:12px;">
+      <div style="font-size:20px;flex-shrink:0;">🏗️</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;">Project：系统驱动，非人工维护</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">通过 repo 名 / tag 规则自动聚合 Events，Project 是动态 SQL View，不是人工创建的容器</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;background:var(--surface-raised);border-radius:6px;padding:12px;">
+      <div style="font-size:20px;flex-shrink:0;">📡</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;">本地优先，数据主权</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">所有数据存 <code>~/.soloos/soloos.db</code>，server 和 web 均本地运行，无云依赖</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:var(--text-muted);font-size:13px;">这个架构图准确吗？在终端告诉我是否继续进入数据模型设计。</p>
