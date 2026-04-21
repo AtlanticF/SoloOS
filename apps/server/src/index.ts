@@ -7,6 +7,8 @@ import { entriesRouter } from './routes/entries'
 import { eventsRouter } from './routes/events'
 import { projectsRouter } from './routes/projects'
 import { reviewsRouter } from './routes/reviews'
+import { githubWebhook } from './webhooks/github'
+import { stripeWebhook } from './webhooks/stripe'
 
 export function createApp(db: DB) {
   const app = new Hono()
@@ -16,6 +18,8 @@ export function createApp(db: DB) {
   app.route('/api/events', eventsRouter(db))
   app.route('/api/projects', projectsRouter(db))
   app.route('/api/reviews', reviewsRouter(db))
+  app.route('/webhooks/github', githubWebhook(db))
+  app.route('/webhooks/stripe', stripeWebhook(db))
   return app
 }
 
