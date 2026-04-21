@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core'
 
 export const entries = sqliteTable('entries', {
   id: text('id').primaryKey(),
@@ -50,4 +50,6 @@ export const event_links = sqliteTable('event_links', {
   link_type: text('link_type').notNull(),
   confidence: real('confidence').notNull().default(0.5),
   created_by: text('created_by').notNull().default('ai'),
-})
+}, (t) => ({
+  pk: primaryKey({ columns: [t.source_event_id, t.target_event_id, t.link_type] }),
+}))

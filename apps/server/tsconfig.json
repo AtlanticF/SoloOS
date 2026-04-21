@@ -10,5 +10,5 @@
       "@soloos/shared": ["../../packages/shared/src/index.ts"]
     }
   },
-  "include": ["src", "bin"]
+  "include": ["src"]
 }

@@ -4,7 +4,10 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { homedir } from 'os'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 import * as schema from './schema'
+
+const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
 
 export type DB = ReturnType<typeof drizzle<typeof schema>>
 
@@ -13,7 +16,7 @@ function createDb(dbPath: string): DB {
   const sqlite = new Database(dbPath)
   sqlite.pragma('journal_mode = WAL')
   const db = drizzle(sqlite, { schema })
-  migrate(db, { migrationsFolder: join(import.meta.dirname, '../../drizzle') })
+  migrate(db, { migrationsFolder: migrationsFolder })
   return db
 }
 
@@ -28,6 +31,6 @@ export function getDb(): DB {
 export function createTestDb(): DB {
   const sqlite = new Database(':memory:')
   const db = drizzle(sqlite, { schema })
-  migrate(db, { migrationsFolder: join(import.meta.dirname, '../../drizzle') })
+  migrate(db, { migrationsFolder: migrationsFolder })
   return db
 }
