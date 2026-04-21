@@ -67,6 +67,11 @@ export function Explorer() {
         </TabsContent>
 
         <TabsContent value="pillars" className="flex-1 min-h-0 flex flex-col gap-3">
+          {PILLARS.every(p => allEvents.filter(e => e.pillar === p).length === 0) && (
+            <div className="text-xs py-8 text-center" style={{ color: '#3f3f46' }}>
+              No events yet. Capture your first entry to see pillar activity.
+            </div>
+          )}
           {PILLARS.map(pillar => {
             const pillarsEvents = allEvents.filter(e => e.pillar === pillar)
             if (pillarsEvents.length === 0) return null

@@ -7,7 +7,7 @@ import { PILLARS, type Pillar } from '@soloos/shared'
 import { formatMoney } from '@/lib/utils'
 
 export function Cockpit() {
-  const { data: review } = useQuery({
+  const { data: review, isLoading: reviewLoading } = useQuery({
     queryKey: queryKeys.reviewCurrent(),
     queryFn: api.reviews.current,
   })
@@ -16,6 +16,7 @@ export function Cockpit() {
     queryFn: () => api.events.list(),
   })
 
+  if (reviewLoading) return null
   if (review && !review.completed_at) {
     return <ReviewGate review={review} />
   }
@@ -91,7 +92,7 @@ export function Cockpit() {
             <span className="text-xs font-semibold uppercase tracking-widest block mb-3" style={{ color: '#52525b' }}>
               Recent Events
             </span>
-            {events.slice(0, 8).map(event => (
+            {[...events].sort((a, b) => b.occurred_at - a.occurred_at).slice(0, 8).map(event => (
               <div key={event.id} className="flex items-center gap-3 py-2 border-b text-xs"
                    style={{ borderColor: '#18181b' }}>
                 <span className={`px-1.5 py-0.5 rounded text-xs font-bold pillar-badge-${event.pillar.toLowerCase()}`}>
