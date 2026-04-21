@@ -1,12 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Shell } from '@/components/layout/Shell'
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen">{children}</div>
-}
-
-function Cockpit() { return <div>Cockpit</div> }
-function Explorer() { return <div>Explorer</div> }
-function Review() { return <div>Review</div> }
+function Cockpit() { return <div className="text-zinc-600 text-xs">Cockpit coming in Task 9</div> }
+function Explorer() { return <div className="text-zinc-600 text-xs">Explorer coming in Task 10</div> }
+function Review() { return <div className="text-zinc-600 text-xs">Review coming in Task 11</div> }
 
 export default function App() {
   return (
