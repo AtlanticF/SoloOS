@@ -238,7 +238,63 @@ Trigger: click any Event → `<Sheet side="right">` slides in
 
 ---
 
-## 7. MVP Scope (V1)
+## 7. Design System
+
+Inspired by **Claude's** typographic clarity and warm surfaces, and **Cursor's** developer density and keyboard-first interaction model.
+
+### 7.1 Six Core Rules
+
+| # | Rule | Principle |
+|---|------|-----------|
+| 01 | **Typography** | Inter for all UI copy. JetBrains Mono for all data values, timestamps, IDs, metrics. Never mix roles. |
+| 02 | **Color** | Zinc dark base (#0a0a0a surface, #111 cards, #1e1e22 borders). Five pillar accent colors used consistently across badges, chart axes, and card borders. |
+| 03 | **Density** | Developer density: 14–20px card padding, 32px row height, 8–12px gaps. Information scannable in one eye movement per card. |
+| 04 | **Motion** | Two animations only: Sheet slide-in (180ms ease-out) and number value updates (300ms). No decorative animation. Motion means something changed. |
+| 05 | **Interaction** | ⌘K command palette as the primary navigation spine. Every action reachable in ≤2 keystrokes. Mouse is optional. |
+| 06 | **Data Viz** | No chart chrome. Radar: filled polygon + colored axes, no gridlines. Sparklines: line only, no axes. Every pixel serves data. |
+
+### 7.2 Pillar Color System
+
+| Pillar | Color | Hex |
+|--------|-------|-----|
+| Input | Emerald | `#10b981` |
+| Output | Indigo | `#6366f1` |
+| Audience | Amber | `#f59e0b` |
+| Financial | Red | `#ef4444` |
+| Energy | Violet | `#8b5cf6` |
+
+Each pillar color appears in: `Badge` backgrounds, Radar chart axis dots, card border-top accents, and progress bars.
+
+### 7.3 Typography Scale
+
+| Role | Font | Size | Weight | Notes |
+|------|------|------|--------|-------|
+| Display | Inter | 20px | 600 | letter-spacing: -0.5px |
+| Heading | Inter | 14px | 600 | letter-spacing: -0.3px |
+| Section label | Inter | 11px | 600 | uppercase, letter-spacing: 0.08em, color: zinc-500 |
+| Body | Inter | 13px | 400 | color: zinc-400 |
+| Metric value | JetBrains Mono | 20px | 700 | letter-spacing: -0.5px |
+| Meta / timestamp | JetBrains Mono | 10px | 400 | color: zinc-600 |
+
+### 7.4 Layout Shell
+
+- **Sidebar**: 48px icon-only, fixed. Icons: Cockpit / Explorer / Review / Settings.
+- **Top bar**: page title (left) + status pills (right). Status = colored dot + short text, never heavy badges.
+- **Content area**: fills remaining width, no max-width constraint inside pages.
+
+### 7.5 Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `⌘K` | Open command palette |
+| `⌘C` | Quick capture entry |
+| `⌘R` | Start / continue Review |
+| `/` | Filter current view |
+| `Esc` | Close Sheet / dismiss |
+
+---
+
+## 8. MVP Scope (V1)
 
 **V1 goal**: write one Entry via CLI, see productivity and revenue curves move together on the Dashboard.
 
