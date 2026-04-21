@@ -25,7 +25,11 @@ export const api = {
   },
   events: {
     list: (params?: { pillar?: string; project_id?: string }) => {
-      const q = new URLSearchParams(params as Record<string, string>).toString()
+      const q = new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params ?? {}).filter(([, v]) => v !== undefined)
+        ) as Record<string, string>
+      ).toString()
       return get<Event[]>(`/events${q ? `?${q}` : ''}`)
     },
   },
