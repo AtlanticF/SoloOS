@@ -54,11 +54,20 @@ export function reviewsRouter(db: DB) {
 
   app.post('/:id/complete', async (c) => {
     const { id } = c.req.param()
-    const body = await c.req.json<{ reflection: string }>()
+    let body: { reflection: string }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
     const now = Math.floor(Date.now() / 1000)
-    await db.update(schema.reviews)
+    const updated = await db.update(schema.reviews)
       .set({ reflection: body.reflection, completed_at: now })
       .where(eq(schema.reviews.id, id))
+      .returning({ id: schema.reviews.id })
+    if (updated.length === 0) {
+      return c.json({ error: 'review not found' }, 404)
+    }
     return c.json({ ok: true })
   })
 

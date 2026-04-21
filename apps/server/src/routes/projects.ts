@@ -13,7 +13,15 @@ export function projectsRouter(db: DB) {
   })
 
   app.post('/', async (c) => {
-    const body = await c.req.json<{ name: string; match_rules?: Record<string, unknown> }>()
+    let body: { name?: string; match_rules?: Record<string, unknown> }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+    if (!body?.name || typeof body.name !== 'string') {
+      return c.json({ error: 'name is required' }, 400)
+    }
     const now = Math.floor(Date.now() / 1000)
     const row = {
       id: randomUUID(),
