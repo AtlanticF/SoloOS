@@ -9,7 +9,14 @@ export function stripeWebhook(db: DB) {
   app.post('/', async (c) => {
     const payload = await c.req.json<{
       type: string
-      data: { object: { amount: number; currency: string; description?: string } }
+      data: {
+        object: {
+          amount?: number         // charge.succeeded, payment_intent.succeeded
+          amount_paid?: number    // invoice.paid
+          currency: string
+          description?: string
+        }
+      }
     }>()
 
     if (!['payment_intent.succeeded', 'charge.succeeded', 'invoice.paid'].includes(payload.type)) {
@@ -17,7 +24,9 @@ export function stripeWebhook(db: DB) {
     }
 
     const obj = payload.data.object
-    const amountDollars = obj.amount / 100
+    const rawAmount = obj.amount ?? obj.amount_paid ?? 0
+    const amountDollars = rawAmount / 100
+    if (amountDollars <= 0) return c.json({ ok: true })
     const now = Math.floor(Date.now() / 1000)
 
     const entry = {

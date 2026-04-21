@@ -13,8 +13,10 @@ export function githubWebhook(db: DB) {
 
     const payload = await c.req.json<{
       repository: { name: string; full_name: string }
-      head_commit: { message: string; timestamp: string }
+      head_commit: { message: string; timestamp: string } | null
     }>()
+
+    if (!payload.head_commit) return c.json({ ok: true })
 
     const now = Math.floor(Date.now() / 1000)
     const repoName = payload.repository.name

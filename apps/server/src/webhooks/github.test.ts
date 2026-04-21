@@ -12,6 +12,32 @@ describe('POST /webhooks/github', () => {
     app = createApp(db)
   })
 
+  it('ignores non-push events without DB writes', async () => {
+    const res = await app.request('/webhooks/github', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-GitHub-Event': 'ping' },
+      body: JSON.stringify({ zen: 'Keep it logically awesome.' }),
+    })
+    expect(res.status).toBe(200)
+    const events = await db.select().from(schema.events)
+    expect(events).toHaveLength(0)
+  })
+
+  it('ignores push events without head_commit (tag deletion)', async () => {
+    const res = await app.request('/webhooks/github', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-GitHub-Event': 'push' },
+      body: JSON.stringify({
+        ref: 'refs/tags/v1.0.0',
+        repository: { name: 'amigogo-app', full_name: 'matt/amigogo-app' },
+        head_commit: null,
+      }),
+    })
+    expect(res.status).toBe(200)
+    const events = await db.select().from(schema.events)
+    expect(events).toHaveLength(0)
+  })
+
   it('creates an entry and event for a push event', async () => {
     const payload = {
       ref: 'refs/heads/main',
