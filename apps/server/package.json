@@ -11,7 +11,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
     "@soloos/shared": "workspace:*",

@@ -5,6 +5,7 @@ export type Classifier = 'rule' | 'api-key' | 'skill' | 'human'
 export interface Event {
   id: string
   entry_id: string
+  title: string
   pillar: Pillar
   project_id: string | null
   impact_score: number
@@ -16,6 +17,7 @@ export interface Event {
 
 export interface CreateEventInput {
   entry_id: string
+  title: string
   pillar: Pillar
   project_id?: string
   impact_score?: number

@@ -1,0 +1,1 @@
+ALTER TABLE `github_configs` ADD COLUMN `auto_sync_enabled` integer NOT NULL DEFAULT 1;

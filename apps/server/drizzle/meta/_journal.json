@@ -15,6 +15,48 @@
       "when": 1776760804178,
       "tag": "0001_yellow_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776842012667,
+      "tag": "0002_curvy_jubilee",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1745424000000,
+      "tag": "0003_output_pillar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1745425000000,
+      "tag": "0004_github_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777046400000,
+      "tag": "0005_github_auto_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1745510400000,
+      "tag": "0006_associations",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1777050000000,
+      "tag": "0007_event_title",
+      "breakpoints": true
     }
   ]
 }

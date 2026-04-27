@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { api, queryKeys } from '@/lib/api'
 import type { Review } from '@soloos/shared'
 
 export function ReviewGate({ review }: { review: Review }) {
+  const { t } = useTranslation()
   const [reflection, setReflection] = useState('')
   const qc = useQueryClient()
 
@@ -20,15 +22,17 @@ export function ReviewGate({ review }: { review: Review }) {
         🔒
       </div>
       <div>
-        <h2 className="text-sm font-semibold tracking-tight mb-1">Weekly Review Required</h2>
+        <h2 className="text-sm font-semibold tracking-tight mb-1" style={{ color: '#e4e4e7' }}>
+          {t('reviewGate.title')}
+        </h2>
         <p className="text-xs" style={{ color: '#71717a' }}>
-          Complete this week's retrospective to unlock the Cockpit.
+          {t('reviewGate.subtitle')}
         </p>
       </div>
       <textarea
         className="w-full rounded-lg p-3 text-sm resize-none"
         style={{ background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', height: 120 }}
-        placeholder="What moved the needle this week? What drained you?"
+        placeholder={t('reviewGate.placeholder')}
         value={reflection}
         onChange={e => setReflection(e.target.value)}
       />
@@ -37,7 +41,7 @@ export function ReviewGate({ review }: { review: Review }) {
         onClick={() => complete.mutate()}
         className="w-full"
       >
-        {complete.isPending ? 'Saving…' : 'Complete Review & Unlock'}
+        {complete.isPending ? t('reviewGate.saving') : t('reviewGate.submit')}
       </Button>
     </div>
   )

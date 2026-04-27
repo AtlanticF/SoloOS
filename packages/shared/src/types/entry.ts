@@ -1,3 +1,5 @@
+import type { Pillar } from './pillar'
+
 export type EntryStatus = 'pending' | 'processed'
 export type EntrySource = 'cli' | 'github' | 'stripe' | 'browser-ext'
 
@@ -13,5 +15,6 @@ export interface Entry {
 export interface CreateEntryInput {
   content: string
   source?: EntrySource
+  pillar?: Pillar
   quick_tags?: string[]
 }

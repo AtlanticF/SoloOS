@@ -6,12 +6,17 @@
   "tailwind": {
     "config": "tailwind.config.js",
     "css": "src/index.css",
-    "baseColor": "zinc",
+    "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils"
-  }
+  },
+  "iconLibrary": "lucide",
+  "rtl": false,
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {}
 }

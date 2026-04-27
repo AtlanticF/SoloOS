@@ -42,6 +42,7 @@ export function stripeWebhook(db: DB) {
     await db.insert(schema.events).values({
       id: randomUUID(),
       entry_id: entry.id,
+      title: `+$${amountDollars.toFixed(2)} ${payload.type}`.slice(0, 80),
       pillar: 'FINANCIAL',
       project_id: null,
       impact_score: Math.min(10, Math.ceil(amountDollars / 10)),

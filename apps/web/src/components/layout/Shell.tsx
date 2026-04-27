@@ -8,8 +8,14 @@ export function Shell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0">
         <TopBar />
-        <main className="flex-1 overflow-auto p-5">
-          {children}
+        <main className="flex-1 overflow-auto">
+          {/* Centered content column — blank margins on left and right */}
+          <div
+            className="min-h-full flex flex-col px-8 py-6"
+            style={{ maxWidth: 1200, margin: '0 auto' }}
+          >
+            {children}
+          </div>
         </main>
       </div>
     </div>

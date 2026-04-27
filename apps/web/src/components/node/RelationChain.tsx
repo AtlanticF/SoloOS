@@ -1,5 +1,6 @@
 import type { EventLink, Event } from '@soloos/shared'
 import { PILLAR_COLORS } from '@soloos/shared'
+import { useTranslation } from 'react-i18next'
 
 interface RelationChainProps {
   links: EventLink[]
@@ -7,10 +8,12 @@ interface RelationChainProps {
 }
 
 export function RelationChain({ links, events }: RelationChainProps) {
+  const { t } = useTranslation()
+
   if (links.length === 0) {
     return (
       <p className="text-xs py-2" style={{ color: '#3f3f46' }}>
-        No correlations detected yet
+        {t('nodeSheet.noCorrelations')}
       </p>
     )
   }
@@ -33,7 +36,7 @@ export function RelationChain({ links, events }: RelationChainProps) {
               {target?.pillar ?? 'unknown'}
             </span>
             <span className="text-xs font-mono" style={{ color: '#52525b' }}>
-              {(link.confidence * 100).toFixed(0)}% confidence
+              {t('nodeSheet.confidence', { value: (link.confidence * 100).toFixed(0) })}
             </span>
           </div>
         )

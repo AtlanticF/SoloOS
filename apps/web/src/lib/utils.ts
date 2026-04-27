@@ -10,8 +10,8 @@ export function pillarBadgeClass(pillar: Pillar): string {
   return `pillar-badge-${pillar.toLowerCase()}`
 }
 
-export function formatTs(unix: number): string {
-  return new Date(unix * 1000).toLocaleString('en-US', {
+export function formatTs(unix: number, locale?: string): string {
+  return new Date(unix * 1000).toLocaleString(locale, {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 }

@@ -22,6 +22,13 @@ export function eventsRouter(db: DB) {
     return c.json(rows.map(deserialize))
   })
 
+  app.get('/:id', async (c) => {
+    const id = c.req.param('id')
+    const rows = await db.select().from(schema.events).where(eq(schema.events.id, id)).limit(1)
+    if (!rows[0]) return c.json({ error: 'not_found' }, 404)
+    return c.json(deserialize(rows[0]))
+  })
+
   app.post('/batch', async (c) => {
     let items: Array<{
       entry_id: string
@@ -49,6 +56,7 @@ export function eventsRouter(db: DB) {
     const rows = items.map(item => ({
       id: randomUUID(),
       entry_id: item.entry_id,
+      title: `${item.pillar} event`,
       pillar: item.pillar,
       project_id: null,
       impact_score: item.impact_score ?? 1,

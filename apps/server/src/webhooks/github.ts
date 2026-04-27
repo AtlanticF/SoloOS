@@ -38,6 +38,7 @@ export function githubWebhook(db: DB) {
     await db.insert(schema.events).values({
       id: randomUUID(),
       entry_id: entry.id,
+      title: commitMsg.slice(0, 80),
       pillar: 'OUTPUT',
       project_id: projectId,
       impact_score: 1,

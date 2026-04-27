@@ -1,0 +1,1486 @@
+# yaml-language-server: $schema=https://spec.openapis.org/oas/3.0/schema/2021-09-28
+openapi: 3.0.3
+info:
+  title: SoloOS API
+  version: 1.0.0
+  description: |
+    SoloOS local backend API.
+
+    Conventions:
+    - Timestamps are Unix seconds.
+    - Error responses use `{ error: string }` unless otherwise noted.
+    - List endpoints are ascending by occurrence/creation unless endpoint-specific logic states otherwise.
+    - Pagination is incremental and endpoint-specific (`limit` currently available on insights list).
+    - Authentication is currently not enforced on HTTP endpoints in local mode.
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+tags:
+  - name: System
+  - name: Entries
+  - name: Events
+  - name: Projects
+  - name: Reviews
+  - name: Insights
+  - name: Agent Config
+  - name: Webhooks
+  - name: Output
+  - name: Associations
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /api/entries:
+    get:
+      tags: [Entries]
+      summary: List entries
+      operationId: listEntries
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, processed]
+      responses:
+        '200':
+          description: Entries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entry'
+        '400':
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Entries]
+      summary: Create an entry
+      operationId: createEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntryRequest'
+            examples:
+              semanticInput:
+                summary: Semantic capture input
+                value:
+                  content: 看了 Dan Koe 一人公司，意识到流程比工具重要，打算简化录入逻辑 #input
+                  source: cli
+                  pillar: INPUT
+                  quick_tags: [idea, strategy]
+      responses:
+        '201':
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Entry'
+                  - $ref: '#/components/schemas/EntryWithCapture'
+              examples:
+                basicEntry:
+                  summary: Non-input entry
+                  value:
+                    id: 5e7639c7-0ba4-4f17-aea5-5e9f77ca6f95
+                    content: shipped v2 #output
+                    source: cli
+                    status: processed
+                    quick_tags: []
+                    created_at: 1713811200
+                inputEntryWithCapture:
+                  summary: Input entry with parser result
+                  value:
+                    id: 9d2f9d4b-3b99-4684-b8fb-b65ecf7f8f13
+                    content: 看了 Dan Koe 一人公司，意识到流程比工具重要，打算简化录入逻辑 #input
+                    source: cli
+                    status: processed
+                    quick_tags: [idea]
+                    created_at: 1713811202
+                    capture:
+                      entry_id: 9d2f9d4b-3b99-4684-b8fb-b65ecf7f8f13
+                      outcome: insight_created
+                      feedback: "✓ Insight captured and activated."
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/events:
+    get:
+      tags: [Events]
+      summary: List events
+      operationId: listEvents
+      parameters:
+        - in: query
+          name: pillar
+          required: false
+          schema:
+            type: string
+            enum: [INPUT, OUTPUT, AUDIENCE, FINANCIAL, ENERGY]
+        - in: query
+          name: project_id
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Events list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+
+  /api/events/batch:
+    post:
+      tags: [Events]
+      summary: Batch create events from external classifier
+      operationId: createEventsBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/CreateBatchEventItem'
+            examples:
+              classifyPendingEntries:
+                value:
+                  - entry_id: d251f22d-0ddd-4f4e-9802-5239641b7df2
+                    pillar: INPUT
+                    classifier: api-key
+                    impact_score: 2
+                    metadata:
+                      reason: inferred from semantic capture
+      responses:
+        '201':
+          description: Events created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+                required: [created]
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      operationId: listProjects
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+    post:
+      tags: [Projects]
+      summary: Create project
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/reviews/current:
+    get:
+      tags: [Reviews]
+      summary: Get or create current weekly review
+      operationId: getCurrentReview
+      responses:
+        '200':
+          description: Current weekly review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+
+  /api/reviews/{id}/complete:
+    post:
+      tags: [Reviews]
+      summary: Complete a review
+      operationId: completeReview
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteReviewRequest'
+            example:
+              reflection: 本周产出稳定，但输入噪音偏高，下周收紧信息源。
+      responses:
+        '200':
+          description: Review completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Review not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/insights:
+    get:
+      tags: [Insights]
+      summary: List insights
+      operationId: listInsights
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [INBOX, ACTIVE, INCUBATING, PROJECTIZED, CONVERTED]
+        - in: query
+          name: type
+          required: false
+          schema:
+            type: string
+            enum: [STRATEGY, TECHNIQUE, MARKET, SEED]
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 100
+      responses:
+        '200':
+          description: Insights list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Insight'
+
+  /api/insights/{id}:
+    get:
+      tags: [Insights]
+      summary: Get insight by ID
+      operationId: getInsightById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Insight found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Insight'
+        '404':
+          description: Insight not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/agent-config:
+    get:
+      tags: [Agent Config]
+      summary: Get active agent config
+      operationId: getAgentConfig
+      responses:
+        '200':
+          description: Agent config or null
+          content:
+            application/json:
+              schema:
+                nullable: true
+                $ref: '#/components/schemas/AgentConfig'
+    put:
+      tags: [Agent Config]
+      summary: Upsert agent config
+      operationId: upsertAgentConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertAgentConfigRequest'
+            examples:
+              openaiConfig:
+                value:
+                  provider: openai
+                  model: gpt-4o
+                  api_key: sk-xxxx
+              anthropicConfig:
+                value:
+                  provider: anthropic
+                  model: claude-haiku-4-5-20251101
+                  api_key: sk-ant-xxxx
+              customConfig:
+                value:
+                  provider: custom
+                  model: custom-model-id
+                  api_key: custom-key
+                  base_url: https://your-openai-compatible-endpoint.example.com
+      responses:
+        '200':
+          description: Config saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfig'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Agent Config]
+      summary: Delete agent config
+      operationId: deleteAgentConfig
+      responses:
+        '200':
+          description: Config deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /api/agent-config/test:
+    post:
+      tags: [Agent Config]
+      summary: Test connectivity with current agent config
+      operationId: testAgentConfig
+      responses:
+        '200':
+          description: Connectivity test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConnectionTestResult'
+              examples:
+                success:
+                  value:
+                    ok: true
+                    url: https://api.openai.com/v1/chat/completions
+                    request_body: "{\"model\":\"gpt-4o\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with just \\\"OK\\\".\"}],\"max_tokens\":5}"
+                    response_status: 200
+                    response_body: "{\"id\":\"chatcmpl_xxx\"}"
+                failure:
+                  value:
+                    ok: false
+                    url: https://api.openai.com/v1/chat/completions
+                    request_body: "{\"model\":\"gpt-4o\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with just \\\"OK\\\".\"}],\"max_tokens\":5}"
+                    response_status: 401
+                    response_body: "{\"error\":{\"message\":\"Incorrect API key\"}}"
+        '400':
+          description: Agent config missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConnectionTestResult'
+
+  /webhooks/github:
+    post:
+      tags: [Webhooks]
+      summary: GitHub webhook receiver
+      description: |
+        Handles `push` events and records OUTPUT events.
+        Signature headers are documented for compatibility; current implementation does not verify signatures yet.
+      operationId: githubWebhook
+      parameters:
+        - in: header
+          name: X-GitHub-Event
+          required: true
+          schema:
+            type: string
+            example: push
+          description: GitHub event type. Only `push` is processed.
+        - in: header
+          name: X-Hub-Signature-256
+          required: false
+          schema:
+            type: string
+            example: sha256=...
+          description: GitHub HMAC signature (reserved for future verification).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GithubWebhookPayload'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      summary: Stripe webhook receiver
+      description: |
+        Handles selected payment success events and records FINANCIAL events.
+        Signature headers are documented for compatibility; current implementation does not verify signatures yet.
+      operationId: stripeWebhook
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: false
+          schema:
+            type: string
+            example: t=1713811200,v1=...
+          description: Stripe signature header (reserved for future verification).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StripeWebhookPayload'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  # ── Output Pillar ────────────────────────────────────────────────────────────
+
+  /api/output/summary:
+    get:
+      tags: [Output]
+      summary: Output lifecycle summary
+      operationId: getOutputSummary
+      description: Returns aggregate counts by lifecycle state and financial totals.
+      responses:
+        '200':
+          description: Output summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputSummary'
+              example:
+                counts:
+                  DRAFT: 2
+                  ACTIVE: 18
+                  VALUATED: 5
+                  GHOST: 1
+                  ARCHIVED: 0
+                totals:
+                  allocated_cost: "412.50"
+                  realized_revenue: "180.00"
+                sync_status: idle
+                last_synced_at: 1713811200
+
+  /api/output/events:
+    get:
+      tags: [Output]
+      summary: List output events
+      operationId: listOutputEvents
+      description: Paginated commit-level output list with lifecycle state and financial snapshot.
+      parameters:
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+          description: Last seen output_metadata id; omit for first page.
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 50, maximum: 100 }
+        - in: query
+          name: repo_id
+          required: false
+          schema: { type: integer }
+        - in: query
+          name: project_id
+          required: false
+          schema: { type: string }
+        - in: query
+          name: state
+          required: false
+          schema:
+            $ref: '#/components/schemas/OutputLifecycleState'
+      responses:
+        '200':
+          description: Paginated output events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputEventsPage'
+        '400':
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputErrorResponse'
+
+  /api/output/sync:
+    post:
+      tags: [Output]
+      summary: Trigger manual sync
+      operationId: triggerOutputSync
+      description: |
+        Triggers a GitHub commit sync for all bound repos, or a specific repo_id.
+        Returns immediately with accepted status. Use GET /api/output/sync-status to poll progress.
+        If quota is exhausted, returns deferred_rate_limited with next_safe_sync_at.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerSyncRequest'
+            example:
+              repo_id: 123456
+      responses:
+        '200':
+          description: Sync accepted or deferred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerSyncResponse'
+              examples:
+                accepted:
+                  value: { accepted: true, status: running, next_safe_sync_at: null }
+                rateLimited:
+                  value: { accepted: false, status: deferred_rate_limited, next_safe_sync_at: 1713814800 }
+        '401':
+          description: GitHub token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputErrorResponse'
+        '409':
+          description: Sync already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputErrorResponse'
+
+  /api/output/sync-status:
+    get:
+      tags: [Output]
+      summary: Get sync status for all bound repos
+      operationId: getOutputSyncStatus
+      responses:
+        '200':
+          description: Per-repo sync state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RepoSyncState'
+                required: [repos]
+              example:
+                repos:
+                  - repo_id: 123456
+                    repo_full_name: matt/soloos
+                    status: idle
+                    last_synced_at: 1713811200
+                    last_synced_sha: abc123def456
+                    next_safe_sync_at: null
+                    error_message: null
+
+  /api/output/repo-bindings:
+    get:
+      tags: [Output]
+      summary: List repo-project bindings
+      operationId: listRepoBindings
+      responses:
+        '200':
+          description: Active repo bindings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RepoBinding'
+    post:
+      tags: [Output]
+      summary: Create or update a repo-project binding
+      operationId: upsertRepoBinding
+      description: |
+        Upserts a binding by repo_id. The effective_from field in the response confirms
+        this change is forward-only — historical commits are not affected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertRepoBindingRequest'
+            example:
+              repo_id: 123456
+              repo_name: soloos
+              repo_full_name: matt/soloos
+              project_id: proj_soloos
+      responses:
+        '200':
+          description: Binding created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepoBinding'
+              example:
+                id: bind_abc123
+                repo_id: 123456
+                repo_name: soloos
+                repo_full_name: matt/soloos
+                project_id: proj_soloos
+                effective_from: future_commits_only
+                created_at: 1713811200
+                updated_at: 1713811200
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputErrorResponse'
+
+  # ── Associations ─────────────────────────────────────────────────────────────
+
+  /api/associations:
+    get:
+      tags: [Associations]
+      summary: List associations
+      operationId: listAssociations
+      description: Returns associations with joined insight and output summaries, filtered by project. Cursor-based pagination.
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          schema: { type: string }
+          description: Filter by project.
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [PENDING_REVIEW, CONFIRMED, REJECTED]
+          description: Filter by association status. Omit for all.
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+          description: Last seen association id for cursor pagination.
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        '200':
+          description: Paginated associations with source/target summaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssociationsPage'
+        '400':
+          description: Missing required query param
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/associations/{id}/confirm:
+    post:
+      tags: [Associations]
+      summary: Confirm an association
+      operationId: confirmAssociation
+      description: Transitions association to CONFIRMED and insight to CONVERTED. Recomputes insight-attributed cost.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Association confirmed with updated insight
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmAssociationResponse'
+        '404':
+          description: Association not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Association already in terminal state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssociationTerminalError'
+
+  /api/associations/{id}/reject:
+    post:
+      tags: [Associations]
+      summary: Reject an association
+      operationId: rejectAssociation
+      description: Transitions association to REJECTED. Insight status is unchanged.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Association rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RejectAssociationResponse'
+        '404':
+          description: Association not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Association already in terminal state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssociationTerminalError'
+
+  /api/associations/batch-review:
+    post:
+      tags: [Associations]
+      summary: Batch confirm and/or reject associations
+      operationId: batchReviewAssociations
+      description: Processes confirm_ids and reject_ids in one call. Returns counts and per-id errors for any that could not be processed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchReviewRequest'
+            example:
+              confirm_ids: ["assoc_abc", "assoc_def"]
+              reject_ids: ["assoc_ghi"]
+      responses:
+        '200':
+          description: Batch result with counts and any per-id errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchReviewResponse'
+              example:
+                confirmed: 2
+                rejected: 1
+                errors: []
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    LocalApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Optional future local API key scheme. Not currently enforced.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+      example:
+        error: invalid JSON
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+      example:
+        ok: true
+
+    Entry:
+      type: object
+      properties:
+        id: { type: string }
+        content: { type: string }
+        source:
+          type: string
+          enum: [cli, github, stripe, browser-ext]
+        status:
+          type: string
+          enum: [pending, processed]
+        quick_tags:
+          type: array
+          items: { type: string }
+        created_at:
+          type: integer
+      required: [id, content, source, status, quick_tags, created_at]
+
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        entry_id: { type: string }
+        title: { type: string, description: Concise event title }
+        pillar:
+          type: string
+          enum: [INPUT, OUTPUT, AUDIENCE, FINANCIAL, ENERGY]
+        project_id:
+          type: string
+          nullable: true
+        impact_score: { type: integer }
+        classifier:
+          type: string
+          enum: [rule, api-key, skill, human]
+        metadata:
+          type: object
+          additionalProperties: true
+        occurred_at: { type: integer }
+        created_at: { type: integer }
+      required:
+        [id, entry_id, title, pillar, project_id, impact_score, classifier, metadata, occurred_at, created_at]
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [active, dormant, completed]
+        match_rules:
+          type: object
+          additionalProperties: true
+        is_auto: { type: boolean }
+        first_event_at:
+          type: integer
+          nullable: true
+        last_event_at:
+          type: integer
+          nullable: true
+        created_at: { type: integer }
+      required: [id, name, status, match_rules, is_auto, created_at]
+
+    Review:
+      type: object
+      properties:
+        id: { type: string }
+        period: { type: string }
+        period_start: { type: integer }
+        period_end: { type: integer }
+        snapshot:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        reflection:
+          type: string
+          nullable: true
+        ai_insight:
+          type: string
+          nullable: true
+        completed_at:
+          type: integer
+          nullable: true
+        created_at: { type: integer }
+      required:
+        [id, period, period_start, period_end, snapshot, created_at]
+
+    InsightContent:
+      type: object
+      properties:
+        fact: { type: string }
+        synthesis: { type: string }
+        vector: { type: string }
+      required: [fact, synthesis, vector]
+
+    InsightMetrics:
+      type: object
+      properties:
+        value_score:
+          type: integer
+          minimum: 1
+          maximum: 10
+        shelf_life:
+          type: string
+          enum: [LONG, SHORT]
+        certainty:
+          type: number
+          minimum: 0
+          maximum: 1
+      required: [value_score, shelf_life, certainty]
+
+    Insight:
+      type: object
+      properties:
+        id: { type: string }
+        entry_id: { type: string }
+        event_id:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [STRATEGY, TECHNIQUE, MARKET, SEED]
+        content:
+          $ref: '#/components/schemas/InsightContent'
+        metrics:
+          $ref: '#/components/schemas/InsightMetrics'
+        status:
+          type: string
+          enum: [INBOX, ACTIVE, INCUBATING, PROJECTIZED, CONVERTED]
+        project_id:
+          type: string
+          nullable: true
+        cluster_id:
+          type: string
+          nullable: true
+        created_at: { type: integer }
+        updated_at: { type: integer }
+      required:
+        [id, entry_id, event_id, type, content, metrics, status, project_id, cluster_id, created_at, updated_at]
+
+    CaptureResult:
+      type: object
+      properties:
+        entry_id: { type: string }
+        outcome:
+          type: string
+          enum:
+            [
+              insight_created,
+              stored_in_inbox_missing_vector,
+              stored_in_inbox_missing_synthesis,
+              stored_in_inbox_missing_fact,
+              stored_pending
+            ]
+        insight:
+          $ref: '#/components/schemas/Insight'
+        feedback: { type: string }
+      required: [entry_id, outcome, feedback]
+
+    EntryWithCapture:
+      allOf:
+        - $ref: '#/components/schemas/Entry'
+        - type: object
+          properties:
+            capture:
+              $ref: '#/components/schemas/CaptureResult'
+          required: [capture]
+
+    AgentConfig:
+      type: object
+      properties:
+        id: { type: string }
+        provider:
+          type: string
+          enum: [openai, anthropic, google, groq, ollama, custom]
+        model: { type: string }
+        base_url:
+          type: string
+          nullable: true
+        api_key_masked: { type: string }
+        created_at: { type: integer }
+        updated_at: { type: integer }
+      required: [id, provider, model, base_url, api_key_masked, created_at, updated_at]
+      example:
+        id: 9d2f9d4b-3b99-4684-b8fb-b65ecf7f8f13
+        provider: openai
+        model: gpt-4o
+        base_url: null
+        api_key_masked: "****abcd"
+        created_at: 1713811200
+        updated_at: 1713811200
+
+    AgentConnectionTestResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        url: { type: string }
+        request_body: { type: string }
+        response_status: { type: integer }
+        response_body: { type: string }
+        error: { type: string }
+      required: [ok]
+
+    CreateEntryRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+        source:
+          type: string
+          enum: [cli, github, stripe, browser-ext]
+        pillar:
+          type: string
+          enum: [INPUT, OUTPUT, AUDIENCE, FINANCIAL, ENERGY]
+          description: Explicit pillar override. If omitted, backend rule detection is used.
+        quick_tags:
+          type: array
+          items: { type: string }
+      required: [content]
+
+    CreateBatchEventItem:
+      type: object
+      properties:
+        entry_id: { type: string }
+        pillar:
+          type: string
+          enum: [INPUT, OUTPUT, AUDIENCE, FINANCIAL, ENERGY]
+        impact_score: { type: integer }
+        classifier:
+          type: string
+          enum: [rule, api-key, skill, human]
+        metadata:
+          type: object
+          additionalProperties: true
+      required: [entry_id, pillar, classifier]
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        match_rules:
+          type: object
+          additionalProperties: true
+      required: [name]
+
+    CompleteReviewRequest:
+      type: object
+      properties:
+        reflection:
+          type: string
+      required: [reflection]
+
+    UpsertAgentConfigRequest:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic, google, groq, ollama, custom]
+        model:
+          type: string
+          minLength: 1
+        api_key:
+          type: string
+          minLength: 1
+        base_url:
+          type: string
+      required: [provider, model, api_key]
+
+    GithubWebhookPayload:
+      type: object
+      properties:
+        repository:
+          type: object
+          properties:
+            name: { type: string }
+            full_name: { type: string }
+        head_commit:
+          type: object
+          nullable: true
+          properties:
+            message: { type: string }
+            timestamp: { type: string, format: date-time }
+      additionalProperties: true
+
+    StripeWebhookPayload:
+      type: object
+      properties:
+        type: { type: string }
+        data:
+          type: object
+          properties:
+            object:
+              type: object
+              properties:
+                amount: { type: integer }
+                amount_paid: { type: integer }
+                currency: { type: string }
+                description: { type: string }
+      additionalProperties: true
+
+    # ── Output Pillar ──────────────────────────────────────────────────────────
+
+    OutputLifecycleState:
+      type: string
+      enum: [DRAFT, ACTIVE, VALUATED, GHOST, ARCHIVED]
+      description: |
+        DRAFT: captured, not yet linked to a project.
+        ACTIVE: linked to a project, cost is accumulating.
+        VALUATED: project has earned income; positive ROI.
+        GHOST: project was deleted; commit is an orphaned asset.
+        ARCHIVED: project was archived; historical, static.
+
+    OutputEvent:
+      type: object
+      properties:
+        id: { type: string }
+        event_id: { type: string }
+        repo_id: { type: integer }
+        repo_name: { type: string }
+        commit_sha: { type: string }
+        commit_message: { type: string }
+        author: { type: string }
+        committed_at: { type: integer, description: Unix seconds }
+        state:
+          $ref: '#/components/schemas/OutputLifecycleState'
+        project_id:
+          type: string
+          nullable: true
+        project_name_snapshot:
+          type: string
+          nullable: true
+        additions: { type: integer }
+        deletions: { type: integer }
+        files_changed: { type: integer }
+        allocated_cost:
+          type: string
+          description: Decimal string, e.g. "4.75"
+        realized_revenue:
+          type: string
+          description: Decimal string, e.g. "0.00"
+        created_at: { type: integer }
+        updated_at: { type: integer }
+      required:
+        [id, event_id, repo_id, repo_name, commit_sha, commit_message, author,
+         committed_at, state, project_id, project_name_snapshot, additions,
+         deletions, files_changed, allocated_cost, realized_revenue,
+         created_at, updated_at]
+
+    OutputSummary:
+      type: object
+      properties:
+        counts:
+          type: object
+          properties:
+            DRAFT: { type: integer }
+            ACTIVE: { type: integer }
+            VALUATED: { type: integer }
+            GHOST: { type: integer }
+            ARCHIVED: { type: integer }
+          required: [DRAFT, ACTIVE, VALUATED, GHOST, ARCHIVED]
+        totals:
+          type: object
+          properties:
+            allocated_cost: { type: string }
+            realized_revenue: { type: string }
+          required: [allocated_cost, realized_revenue]
+        sync_status:
+          $ref: '#/components/schemas/SyncStatusValue'
+        last_synced_at:
+          type: integer
+          nullable: true
+      required: [counts, totals, sync_status, last_synced_at]
+
+    SyncStatusValue:
+      type: string
+      enum: [idle, running, deferred_rate_limited, failed, success]
+
+    RepoSyncState:
+      type: object
+      properties:
+        repo_id: { type: integer }
+        repo_full_name: { type: string }
+        status:
+          $ref: '#/components/schemas/SyncStatusValue'
+        last_synced_at:
+          type: integer
+          nullable: true
+        last_synced_sha:
+          type: string
+          nullable: true
+        next_safe_sync_at:
+          type: integer
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required:
+        [repo_id, repo_full_name, status, last_synced_at, last_synced_sha,
+         next_safe_sync_at, error_message]
+
+    RepoBinding:
+      type: object
+      properties:
+        id: { type: string }
+        repo_id: { type: integer }
+        repo_name: { type: string }
+        repo_full_name: { type: string }
+        project_id:
+          type: string
+          nullable: true
+        effective_from:
+          type: string
+          enum: [future_commits_only]
+          description: Rebind rule — always forward-only.
+        created_at: { type: integer }
+        updated_at: { type: integer }
+      required:
+        [id, repo_id, repo_name, repo_full_name, project_id, effective_from,
+         created_at, updated_at]
+
+    OutputEventsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputEvent'
+        next_cursor:
+          type: string
+          nullable: true
+      required: [items, next_cursor]
+
+    TriggerSyncRequest:
+      type: object
+      properties:
+        repo_id:
+          type: integer
+          description: If omitted, syncs all bound repos.
+
+    TriggerSyncResponse:
+      type: object
+      properties:
+        accepted: { type: boolean }
+        status:
+          $ref: '#/components/schemas/SyncStatusValue'
+        next_safe_sync_at:
+          type: integer
+          nullable: true
+      required: [accepted, status, next_safe_sync_at]
+
+    UpsertRepoBindingRequest:
+      type: object
+      properties:
+        repo_id: { type: integer }
+        repo_name: { type: string }
+        repo_full_name: { type: string }
+        project_id:
+          type: string
+          nullable: true
+          description: Null to unbind the repo from any project.
+      required: [repo_id, repo_name, repo_full_name]
+
+    # ── Associations ──────────────────────────────────────────────────────────
+
+    AssociationStatus:
+      type: string
+      enum: [PENDING_REVIEW, CONFIRMED, REJECTED]
+
+    AssociationSourceSummary:
+      type: object
+      description: Joined insight summary
+      properties:
+        id: { type: string }
+        synthesis: { type: string }
+        status:
+          type: string
+          enum: [INBOX, ACTIVE, INCUBATING, PROJECTIZED, CONVERTED]
+      required: [id, synthesis, status]
+
+    AssociationTargetSummary:
+      type: object
+      description: Joined output_metadata summary
+      properties:
+        id: { type: string }
+        commit_sha: { type: string }
+        commit_message: { type: string }
+        allocated_cost:
+          type: string
+          description: Decimal string, e.g. "4.75"
+        committed_at:
+          type: integer
+          description: Unix seconds
+      required: [id, commit_sha, commit_message, allocated_cost, committed_at]
+
+    Association:
+      type: object
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        source_id: { type: string, description: "insights.id" }
+        target_id: { type: string, description: "output_metadata.id" }
+        match_score:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
+        reasoning:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AssociationStatus'
+        source:
+          $ref: '#/components/schemas/AssociationSourceSummary'
+        target:
+          $ref: '#/components/schemas/AssociationTargetSummary'
+        created_at: { type: integer }
+        updated_at: { type: integer }
+      required: [id, project_id, source_id, target_id, match_score, reasoning, status, source, target, created_at, updated_at]
+
+    AssociationsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Association'
+        next_cursor:
+          type: string
+          nullable: true
+      required: [items, next_cursor]
+
+    ConfirmAssociationResponse:
+      type: object
+      properties:
+        association:
+          $ref: '#/components/schemas/Association'
+        insight:
+          $ref: '#/components/schemas/Insight'
+      required: [association, insight]
+
+    RejectAssociationResponse:
+      type: object
+      properties:
+        association:
+          $ref: '#/components/schemas/Association'
+      required: [association]
+
+    AssociationTerminalError:
+      type: object
+      properties:
+        error: { type: string }
+        code:
+          type: string
+          enum: [ASSOCIATION_TERMINAL]
+      required: [error, code]
+
+    BatchReviewRequest:
+      type: object
+      properties:
+        confirm_ids:
+          type: array
+          items: { type: string }
+          default: []
+        reject_ids:
+          type: array
+          items: { type: string }
+          default: []
+
+    BatchReviewError:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        message: { type: string }
+      required: [id, code, message]
+
+    BatchReviewResponse:
+      type: object
+      properties:
+        confirmed: { type: integer }
+        rejected: { type: integer }
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchReviewError'
+      required: [confirmed, rejected, errors]
+
+    OutputErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            [RATE_LIMITED, UNAUTHORIZED_GITHUB, INVALID_BINDING,
+             SYNC_IN_PROGRESS, INTERNAL_ERROR]
+        message: { type: string }
+        retryable: { type: boolean }
+        hint:
+          type: string
+          nullable: true
+      required: [code, message, retryable, hint]

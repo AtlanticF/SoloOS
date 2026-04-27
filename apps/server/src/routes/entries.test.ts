@@ -32,6 +32,17 @@ describe('POST /api/entries', () => {
     expect(body.status).toBe('processed')
   })
 
+  it('uses explicit pillar when provided and returns processed', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'plain text without hashtags', source: 'cli', pillar: 'OUTPUT' }),
+    })
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.status).toBe('processed')
+  })
+
 })
 
 describe('GET /api/entries', () => {
@@ -75,6 +86,15 @@ describe('error handling', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not json',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST with invalid pillar returns 400', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'test', pillar: 'INVALID_PILLAR' }),
     })
     expect(res.status).toBe(400)
   })

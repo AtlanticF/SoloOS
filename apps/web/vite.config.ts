@@ -5,6 +5,7 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.mts', '.json'],
     alias: {
       '@': resolve(__dirname, './src'),
       '@soloos/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
