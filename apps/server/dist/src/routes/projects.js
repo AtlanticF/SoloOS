@@ -1,0 +1,62 @@
+import { Hono } from 'hono';
+import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import * as schema from '../db/schema';
+export function projectsRouter(db) {
+    const app = new Hono();
+    app.get('/', async (c) => {
+        const rows = await db.select().from(schema.projects).orderBy(schema.projects.last_event_at);
+        return c.json(rows.map(deserialize));
+    });
+    app.post('/', async (c) => {
+        let body;
+        try {
+            body = await c.req.json();
+        }
+        catch {
+            return c.json({ error: 'invalid JSON' }, 400);
+        }
+        if (!body?.name || typeof body.name !== 'string') {
+            return c.json({ error: 'name is required' }, 400);
+        }
+        const now = Math.floor(Date.now() / 1000);
+        const row = {
+            id: randomUUID(),
+            name: body.name,
+            status: 'active',
+            match_rules: JSON.stringify(body.match_rules ?? {}),
+            is_auto: 0,
+            first_event_at: null,
+            last_event_at: null,
+            created_at: now,
+        };
+        await db.insert(schema.projects).values(row);
+        return c.json(deserialize(row), 201);
+    });
+    return app;
+}
+export async function findOrCreateProject(db, repoName) {
+    const all = await db.select().from(schema.projects).where(eq(schema.projects.status, 'active'));
+    const matched = all.find(p => {
+        const rules = JSON.parse(p.match_rules);
+        return rules.repos?.includes(repoName);
+    });
+    if (matched)
+        return matched.id;
+    const now = Math.floor(Date.now() / 1000);
+    const newProject = {
+        id: randomUUID(),
+        name: repoName,
+        status: 'active',
+        match_rules: JSON.stringify({ repos: [repoName] }),
+        is_auto: 1,
+        first_event_at: now,
+        last_event_at: now,
+        created_at: now,
+    };
+    await db.insert(schema.projects).values(newProject);
+    return newProject.id;
+}
+function deserialize(row) {
+    return { ...row, match_rules: JSON.parse(row.match_rules), is_auto: row.is_auto === 1 };
+}
