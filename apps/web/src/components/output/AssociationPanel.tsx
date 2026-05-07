@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 import { api, queryKeys } from '@/lib/api'
 import type { Association } from '@/lib/api'
 
@@ -13,24 +12,19 @@ interface Props {
 export function AssociationPanel({ outputMetadataId, projectId }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [showPast, setShowPast] = useState(false)
 
   const enabled = !!projectId
-  const { data: pending, isLoading: pendingLoading } = useQuery({
-    queryKey: queryKeys.associations({ project_id: projectId, status: 'PENDING_REVIEW' }),
-    queryFn: () => api.associations.list({ project_id: projectId!, status: 'PENDING_REVIEW', limit: 100 }),
-    enabled,
-  })
-  const { data: past } = useQuery({
-    queryKey: queryKeys.associations({ project_id: projectId, status: 'past' }),
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.associations({ project_id: projectId, status: 'all' }),
     queryFn: async () => {
-      const [confirmed, rejected] = await Promise.all([
-        api.associations.list({ project_id: projectId!, status: 'CONFIRMED', limit: 50 }),
-        api.associations.list({ project_id: projectId!, status: 'REJECTED', limit: 50 }),
+      const [pending, confirmed, rejected] = await Promise.all([
+        api.associations.list({ project_id: projectId!, status: 'PENDING_REVIEW', limit: 100 }),
+        api.associations.list({ project_id: projectId!, status: 'CONFIRMED', limit: 100 }),
+        api.associations.list({ project_id: projectId!, status: 'REJECTED', limit: 100 }),
       ])
-      return [...confirmed.items, ...rejected.items]
+      return [...pending.items, ...confirmed.items, ...rejected.items]
     },
-    enabled: enabled && showPast,
+    enabled,
   })
 
   function invalidate() {
@@ -46,10 +40,17 @@ export function AssociationPanel({ outputMetadataId, projectId }: Props) {
     onSuccess: invalidate,
   })
 
-  const commitPending = (pending?.items ?? []).filter((a) => a.target_id === outputMetadataId)
-  const commitPast = (past ?? []).filter((a) => a.target_id === outputMetadataId)
-
   if (!projectId) return null
+
+  const commitAssociations = (data ?? []).filter((a) => a.target_id === outputMetadataId)
+  const orderRank: Record<Association['status'], number> = {
+    PENDING_REVIEW: 0,
+    CONFIRMED: 1,
+    REJECTED: 2,
+  }
+  const sorted = [...commitAssociations].sort(
+    (a, b) => orderRank[a.status] - orderRank[b.status],
+  )
 
   return (
     <div className="flex flex-col gap-2">
@@ -57,13 +58,13 @@ export function AssociationPanel({ outputMetadataId, projectId }: Props) {
         {t('output.associationTitle')}
       </div>
 
-      {pendingLoading ? (
+      {isLoading ? (
         <div className="text-xs" style={{ color: '#71717a' }}>{t('output.associationLoading')}</div>
-      ) : commitPending.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-xs" style={{ color: '#52525b' }}>{t('output.associationNoSuggestions')}</div>
       ) : (
         <div className="flex flex-col gap-2">
-          {commitPending.map((assoc) => (
+          {sorted.map((assoc) => (
             <AssociationCard
               key={assoc.id}
               assoc={assoc}
@@ -71,25 +72,6 @@ export function AssociationPanel({ outputMetadataId, projectId }: Props) {
               onReject={() => reject.mutate(assoc.id)}
               isPending={confirm.isPending || reject.isPending}
             />
-          ))}
-        </div>
-      )}
-
-      {(commitPast.length > 0 || (!pendingLoading && commitPending.length === 0)) && (
-        <button
-          onClick={() => setShowPast((p) => !p)}
-          className="flex items-center gap-1 text-xs self-start"
-          style={{ color: '#71717a' }}
-        >
-          {showPast ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {t('output.associationPastDecisions')}
-        </button>
-      )}
-
-      {showPast && commitPast.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {commitPast.map((assoc) => (
-            <AssociationCard key={assoc.id} assoc={assoc} readonly />
           ))}
         </div>
       )}
@@ -102,13 +84,11 @@ function AssociationCard({
   onConfirm,
   onReject,
   isPending,
-  readonly,
 }: {
   assoc: Association
   onConfirm?: () => void
   onReject?: () => void
   isPending?: boolean
-  readonly?: boolean
 }) {
   const { t } = useTranslation()
   const score = assoc.match_score !== null ? Math.round(assoc.match_score * 100) : null
@@ -154,7 +134,7 @@ function AssociationCard({
         </div>
       )}
 
-      {!readonly && assoc.status === 'PENDING_REVIEW' && (
+      {assoc.status === 'PENDING_REVIEW' && (
         <div className="flex items-center gap-2 mt-1">
           <button
             onClick={onConfirm}

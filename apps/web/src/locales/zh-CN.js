@@ -260,7 +260,7 @@ export default {
         detailOccurredAt: '发生时间',
         detailMetadata: '元数据',
         detailEventLoading: '正在加载 Event 详情...',
-        associationTitle: 'AI 建议关联',
+        associationTitle: '关联事件',
         associationMatch: '匹配度 {{score}}%',
         associationConfirm: '确认',
         associationReject: '拒绝',
@@ -268,7 +268,6 @@ export default {
         associationRejected: '已拒绝',
         associationReasoning: '理由',
         associationNoSuggestions: '此提交暂无 AI 建议。',
-        associationPastDecisions: '历史决策',
         associationLoading: '正在检查 AI 建议…',
     },
     capture: {

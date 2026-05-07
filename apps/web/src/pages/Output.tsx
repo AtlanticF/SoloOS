@@ -403,6 +403,10 @@ function OutputEventDetailSheet({
                 {t('output.detailTitle')}
               </SheetTitle>
             </SheetHeader>
+
+            <AssociationPanel outputMetadataId={item.id} projectId={projectId} />
+            <div className="h-px" style={{ background: '#1e1e22' }} />
+
             <DetailRow label={t('output.detailCommit')} value={item.commit_sha} mono />
             <DetailRow label={t('output.detailRepo')} value={item.repo_name} />
             <DetailRow label={t('output.detailAuthor')} value={item.author} />
@@ -429,8 +433,6 @@ function OutputEventDetailSheet({
               <div style={{ color: '#71717a' }}>{t('output.detailEventLoading')}</div>
             )}
 
-            <div className="h-px mt-1" style={{ background: '#1e1e22' }} />
-            <AssociationPanel outputMetadataId={item.id} projectId={projectId} />
           </div>
         ) : (
           <div className="text-sm" style={{ color: '#71717a' }}>{t('output.selectCommitHint')}</div>

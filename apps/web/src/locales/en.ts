@@ -260,7 +260,7 @@ export default {
     detailOccurredAt: 'Occurred at',
     detailMetadata: 'Metadata',
     detailEventLoading: 'Loading event details...',
-    associationTitle: 'AI suggested links',
+    associationTitle: 'Related events',
     associationMatch: '{{score}}% match',
     associationConfirm: 'Confirm',
     associationReject: 'Reject',
@@ -268,7 +268,6 @@ export default {
     associationRejected: 'Rejected',
     associationReasoning: 'Reasoning',
     associationNoSuggestions: 'No AI suggestions for this commit.',
-    associationPastDecisions: 'Past decisions',
     associationLoading: 'Checking AI suggestions…',
   },
   capture: {
