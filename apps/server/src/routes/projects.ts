@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { DB } from '../db/index'
 import * as schema from '../db/schema'
+import { parseJsonColumn } from '../util/json-column'
 
 export function projectsRouter(db: DB) {
   const app = new Hono()
@@ -43,7 +44,7 @@ export function projectsRouter(db: DB) {
 export async function findOrCreateProject(db: DB, repoName: string): Promise<string> {
   const all = await db.select().from(schema.projects).where(eq(schema.projects.status, 'active'))
   const matched = all.find(p => {
-    const rules = JSON.parse(p.match_rules) as { repos?: string[] }
+    const rules = parseJsonColumn<{ repos?: string[] }>(p.match_rules, {})
     return rules.repos?.includes(repoName)
   })
   if (matched) return matched.id
@@ -64,5 +65,9 @@ export async function findOrCreateProject(db: DB, repoName: string): Promise<str
 }
 
 function deserialize(row: typeof schema.projects.$inferSelect) {
-  return { ...row, match_rules: JSON.parse(row.match_rules), is_auto: row.is_auto === 1 }
+  return {
+    ...row,
+    match_rules: parseJsonColumn<Record<string, unknown>>(row.match_rules, {}),
+    is_auto: row.is_auto === 1,
+  }
 }

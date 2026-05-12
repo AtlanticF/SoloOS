@@ -6,6 +6,7 @@ import type { EntrySource, Pillar } from '@soloos/shared'
 import * as schema from '../db/schema'
 import { applyRules } from '../classifiers/rules'
 import { processInputCapture } from '../input/insight-service'
+import { parseJsonColumn } from '../util/json-column'
 
 const VALID_PILLARS: readonly Pillar[] = ['INPUT', 'OUTPUT', 'AUDIENCE', 'FINANCIAL', 'ENERGY']
 
@@ -87,6 +88,6 @@ export function entriesRouter(db: DB) {
 function deserialize(row: typeof schema.entries.$inferSelect) {
   return {
     ...row,
-    quick_tags: JSON.parse(row.quick_tags),
+    quick_tags: parseJsonColumn<string[]>(row.quick_tags, []),
   }
 }

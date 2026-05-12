@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { DB } from '../db/index'
 import * as schema from '../db/schema'
+import { parseJsonColumn } from '../util/json-column'
 
 export function eventsRouter(db: DB) {
   const app = new Hono()
@@ -82,5 +83,5 @@ export function eventsRouter(db: DB) {
 }
 
 function deserialize(row: typeof schema.events.$inferSelect) {
-  return { ...row, metadata: JSON.parse(row.metadata) }
+  return { ...row, metadata: parseJsonColumn<Record<string, unknown>>(row.metadata, {}) }
 }

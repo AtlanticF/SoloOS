@@ -3,7 +3,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
+    "dev": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
     "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
     "test": "pnpm --filter server test"
   },
