@@ -1,6 +1,7 @@
 {
   "name": "soloos",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
     "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
