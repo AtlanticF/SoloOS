@@ -8,7 +8,7 @@ SoloOS is a data-driven “one-person company” operating system for developers
 
 ## Quick start
 
-From the repository root, install dependencies and start the API plus web UI:
+From the **repository root** (the folder that contains `pnpm-workspace.yaml` and the root `package.json`), install dependencies and start the API plus web UI:
 
 ```bash
 git clone https://github.com/AtlanticF/SoloOS.git
@@ -18,9 +18,11 @@ pnpm install
 pnpm dev
 ```
 
-Then open **http://localhost:5173** in your browser. The Vite dev server proxies `/api` and `/webhooks` to the backend on **http://localhost:3000**.
+Do **not** run `pnpm dev` only inside `apps/web` — that script starts **Vite alone** and there will be no API on port 3000 (proxied `/api` calls will fail).
 
-On first boot the server creates **`~/.soloos/soloos.db`** (SQLite), runs migrations, and logs `SoloOS server running at http://localhost:3000`.
+After `pnpm dev` from the root, your terminal should show **two** labeled streams, `api` and `web`. On first boot the API creates **`~/.soloos/soloos.db`** (SQLite), applies migrations, and logs **`SoloOS server running at http://localhost:3000`**. If the API process exits with an error, the dev command stops the web process as well so you are not left with a half-working stack.
+
+Then open **http://localhost:5173** in your browser. The Vite dev server proxies `/api` and `/webhooks` to the backend on **http://localhost:3000**.
 
 Optional sample data:
 
@@ -37,9 +39,15 @@ Interactive API reference: **http://localhost:3000/docs** (Swagger UI).
 ### Requirements
 
 - **Node.js** 20 or newer (LTS recommended)
-- **pnpm** 9 or newer ([install](https://pnpm.io/installation); `corepack enable` then `corepack prepare pnpm@latest --activate` works on many setups)
+- **pnpm** 9 or newer ([install](https://pnpm.io/installation); `corepack enable` then `corepack prepare pnpm@latest --activate` works on many setups). **pnpm 11** is supported.
 
-`better-sqlite3` is a native dependency; `pnpm install` builds it for your current Node/OS.
+`better-sqlite3` is a native dependency; releases in this repo target **better-sqlite3 12.x**, which ships prebuilt binaries for current Node versions when available, and may compile from source otherwise.
+
+### Troubleshooting `pnpm install` (macOS)
+
+- **`ERR_PNPM_IGNORED_BUILDS` / install script blocked** — pnpm 11 requires an explicit allow-list for dependency lifecycle scripts. This repo declares `allowBuilds` in [`pnpm-workspace.yaml`](./pnpm-workspace.yaml). If your checkout is missing it or pnpm adds new packages, run **`pnpm approve-builds`**, set the suggested entries to `true`, then run **`pnpm install`** again.
+- **`better-sqlite3` compile errors on Node 24** (for example `C++20 or later required`) — prefer staying on the locked **`better-sqlite3@12.x`** so a prebuilt binary is used; or switch to **Node 22 LTS** and reinstall. Ensure **Xcode Command Line Tools** are installed (`xcode-select --install`).
+- **`prebuild-install` timeout** — retry **`pnpm install`**; the install will fall back to a local compile when no prebuild is downloaded.
 
 ### Clone and install
 
@@ -54,9 +62,15 @@ pnpm install
 
 | Command | What it runs |
 |--------|----------------|
-| `pnpm dev` | API (`apps/server`, port **3000**) and web (`apps/web`, port **5173**) together via `concurrently` |
+| `pnpm dev` | **From repo root only:** API (`apps/server`, **3000**) + web (`apps/web`, **5173**) in parallel (`concurrently`, prefixes `api` / `web`; if API fails to start, the web dev server is stopped too) |
 | `pnpm --filter server dev` | API only |
-| `pnpm --filter web dev` | Web only (expects API on 3000 for proxied routes) |
+| `pnpm --filter web dev` | Web only (use when you already have the API running elsewhere; Vite still expects **3000** for `/api` proxy) |
+
+### API errors (e.g. every route returns 500)
+
+- Open the UI at **`http://localhost:5173`** or **`http://127.0.0.1:5173`** — both are allowed by the API CORS settings in development.
+- Watch the **server terminal** for **`[SoloOS API]`** logs; unhandled errors are printed there and returned as JSON `{ "error": "…" }`.
+- If the SQLite file was hand-edited or came from an incompatible build, stop the server, remove **`~/.soloos/soloos.db`**, start again (migrations recreate tables). You can re-seed with `pnpm --filter server db:seed` if needed.
 
 ### Build and test
 

@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
+    "skipLibCheck": true,
     "outDir": "./dist",
     "paths": {
       "@soloos/shared": ["../../packages/shared/src/index.ts"]

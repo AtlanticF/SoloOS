@@ -20,9 +20,18 @@ import { stripeWebhook } from './webhooks/stripe'
 
 export function createApp(db: DB) {
   const app = new Hono()
+  app.onError((err, c) => {
+    console.error('[SoloOS API]', err)
+    return c.json({ error: err instanceof Error ? err.message : 'internal_error' }, 500)
+  })
   const openapiPath = fileURLToPath(new URL('../openapi.yaml', import.meta.url))
   const openapiYaml = readFileSync(openapiPath, 'utf8')
-  app.use('*', cors({ origin: 'http://localhost:5173' }))
+  app.use(
+    '*',
+    cors({
+      origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173'],
+    }),
+  )
   app.get('/health', (c) => c.json({ ok: true }))
   app.get('/openapi.yaml', (c) => c.text(openapiYaml, 200, { 'Content-Type': 'application/yaml; charset=utf-8' }))
   app.get('/docs', (c) => c.html(`<!doctype html>

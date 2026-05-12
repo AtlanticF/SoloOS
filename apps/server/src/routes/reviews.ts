@@ -3,6 +3,7 @@ import { and, eq, gte, lte } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { DB } from '../db/index'
 import * as schema from '../db/schema'
+import { parseJsonColumn } from '../util/json-column'
 
 function getWeekBounds(now = Date.now()): { start: number; end: number } {
   const d = new Date(now)
@@ -75,5 +76,5 @@ export function reviewsRouter(db: DB) {
 }
 
 function deserialize(row: typeof schema.reviews.$inferSelect) {
-  return { ...row, snapshot: JSON.parse(row.snapshot) }
+  return { ...row, snapshot: parseJsonColumn<unknown[]>(row.snapshot, []) }
 }
