@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, GitBranch, GitCommitHorizontal } from 'lucide-react'
 import { api, queryKeys } from '@/lib/api'
 import type { Event } from '@soloos/shared'
-import type { OutputEvent, OutputLifecycleState, RepoBinding } from '@/lib/api'
+import type { OutputEvent, OutputLifecycleState, ProjectEconomics, RepoBinding } from '@/lib/api'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { OutputHeader } from '@/components/output/OutputHeader'
 import { OutputLifecycleSummary } from '@/components/output/OutputLifecycleSummary'
@@ -45,6 +45,10 @@ export function Output() {
   const { data: projects = [] } = useQuery({
     queryKey: queryKeys.projects(),
     queryFn: api.projects.list,
+  })
+  const { data: projectEconomics = [] } = useQuery({
+    queryKey: queryKeys.projectEconomics(),
+    queryFn: api.output.projectEconomics,
   })
 
   const { data: githubConfig } = useQuery({
@@ -110,6 +114,13 @@ export function Output() {
     }
     return map
   }, [cardEventsPage?.items, items])
+  const economicsByProject = useMemo(() => {
+    const map = new Map<string, ProjectEconomics>()
+    for (const row of projectEconomics) {
+      map.set(row.project_id, row)
+    }
+    return map
+  }, [projectEconomics])
 
   const defaultSummary = summary ?? {
     counts: { DRAFT: 0, ACTIVE: 0, VALUATED: 0, GHOST: 0, ARCHIVED: 0 },
@@ -200,6 +211,7 @@ export function Output() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {bindings.map((binding) => {
               const linkedProject = projects.find((p) => p.id === binding.project_id)
+              const economics = binding.project_id ? economicsByProject.get(binding.project_id) : null
               const latest = latestEventByRepo.get(binding.repo_id)
               return (
                 <button
@@ -253,6 +265,18 @@ export function Output() {
                       >
                         {t('output.linkProjectQuick')}
                       </button>
+                    </div>
+                  )}
+
+                  {economics && (
+                    <div className="grid grid-cols-3 gap-2 rounded-md border p-2" style={{ borderColor: '#27272a', background: '#18181b' }}>
+                      <EconomicsMetric label={t('output.agentCost')} value={`$${economics.agent_cost}`} tone="muted" />
+                      <EconomicsMetric label={t('output.outputCost')} value={`$${economics.output_allocated_cost}`} tone="muted" />
+                      <EconomicsMetric
+                        label={t('output.margin')}
+                        value={`$${economics.margin}`}
+                        tone={Number(economics.margin) < 0 ? 'negative' : 'positive'}
+                      />
                     </div>
                   )}
 
@@ -376,6 +400,28 @@ export function Output() {
   )
 }
 
+function EconomicsMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: 'muted' | 'positive' | 'negative'
+}) {
+  const color = tone === 'positive' ? '#22c55e' : tone === 'negative' ? '#f87171' : '#a1a1aa'
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-[11px]" style={{ color: '#71717a' }}>
+        {label}
+      </div>
+      <div className="truncate font-mono text-xs tabular-nums" style={{ color }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function OutputEventDetailSheet({
   item,
   eventDetail,
@@ -465,4 +511,3 @@ function DetailRow({
     </div>
   )
 }
-

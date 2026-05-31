@@ -48,7 +48,7 @@ export const api = {
     },
     reviews: {
         current: () => get('/reviews/current'),
-        complete: (id, reflection) => post(`/reviews/${id}/complete`, { reflection }),
+        complete: (id, reflection, agentCostDecision) => post(`/reviews/${id}/complete`, { reflection, agent_cost_decision: agentCostDecision }),
     },
     insights: {
         list: (params) => {
@@ -65,6 +65,7 @@ export const api = {
     },
     output: {
         summary: () => get('/output/summary'),
+        projectEconomics: () => get('/output/project-economics'),
         eventById: (eventId) => get(`/output/events/${eventId}`),
         events: (params) => {
             const q = new URLSearchParams(Object.fromEntries(Object.entries({
@@ -108,6 +109,7 @@ export const queryKeys = {
     agentConfig: () => ['agent-config'],
     agentHealth: () => ['agent-health'],
     outputSummary: () => ['output', 'summary'],
+    projectEconomics: () => ['output', 'project-economics'],
     outputEvents: (params) => ['output', 'events', params],
     outputSyncStatus: () => ['output', 'sync-status'],
     outputBindings: () => ['output', 'repo-bindings'],

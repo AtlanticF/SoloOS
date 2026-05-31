@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { DB } from '../db/index'
 import {
   getOutputSummary,
+  listProjectEconomics,
   getOutputEventByEventId,
   listOutputEvents,
   listRepoBindings,
@@ -19,6 +20,11 @@ export function outputRouter(db: DB) {
   app.get('/summary', async (c) => {
     const summary = await getOutputSummary(db)
     return c.json(summary)
+  })
+
+  app.get('/project-economics', async (c) => {
+    const rows = await listProjectEconomics(db)
+    return c.json(rows)
   })
 
   // GET /api/output/events

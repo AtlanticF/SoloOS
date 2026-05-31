@@ -7,3 +7,4 @@ export * from './types/insight';
 export * from './types/agent-config';
 export * from './types/output';
 export * from './types/association';
+export * from './types/agent-cost';

@@ -71,6 +71,12 @@ export default {
         saving: 'Saving…',
         minChars: 'At least 20 characters. Finishing this unlocks the Cockpit for the week.',
         loading: 'Loading…',
+        agentCostDecision: {
+            continue: 'Continue',
+            pause: 'Pause',
+            kill: 'Kill',
+            double_down: 'Double down',
+        },
     },
     reviewGate: {
         title: 'Weekly review required',
@@ -195,6 +201,9 @@ export default {
         },
         cost: 'Cost',
         revenue: 'Revenue',
+        agentCost: 'Agent',
+        outputCost: 'Output',
+        margin: 'Margin',
         additions: '+{{n}}',
         deletions: '-{{n}}',
         bindingDialog: {

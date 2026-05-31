@@ -1,0 +1,341 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { createApp } from '../index'
+import { createTestDb } from '../db/index'
+
+describe('manual agent cost events', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('creates and lists a manual cost event', async () => {
+    const usageStart = 1772380800
+    const usageEnd = 1772467200
+    const projectRes = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Agent Cost Project' }),
+    })
+    const project = await projectRes.json()
+
+    const createRes = await app.request('/api/agent-cost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'manual',
+        amount: '18.75',
+        currency: 'usd',
+        usage_start: usageStart,
+        usage_end: usageEnd,
+        tool_label: 'codex',
+        line_item: 'weekly-codex-allocation',
+        project_id: project.id,
+        raw_metadata: { note: 'estimated weekly allocation' },
+      }),
+    })
+
+    expect(createRes.status).toBe(201)
+    const created = await createRes.json()
+    expect(created).toMatchObject({
+      provider: 'manual',
+      source: 'manual',
+      project_id: project.id,
+      line_item: 'weekly-codex-allocation',
+      tool_label: 'codex',
+      amount: '18.75',
+      currency: 'USD',
+      usage_start: usageStart,
+      usage_end: usageEnd,
+      raw_metadata: { note: 'estimated weekly allocation' },
+    })
+    expect(created.id).toBeDefined()
+
+    const listRes = await app.request('/api/agent-cost/events')
+
+    expect(listRes.status).toBe(200)
+    const page = await listRes.json()
+    expect(page.next_cursor).toBeNull()
+    expect(page.items).toHaveLength(1)
+    expect(page.items[0]).toMatchObject({
+      id: created.id,
+      provider: 'manual',
+      source: 'manual',
+      amount: '18.75',
+      currency: 'USD',
+      usage_start: usageStart,
+      usage_end: usageEnd,
+    })
+  })
+})
+
+describe('OpenAI cost provider config', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('saves, masks, tests, and deletes an OpenAI costs provider', async () => {
+    const saveRes = await app.request('/api/agent-cost/providers/openai', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: 'OpenAI Admin',
+        api_key: 'sk-admin-costs-secret1234',
+      }),
+    })
+
+    expect(saveRes.status).toBe(200)
+    const saved = await saveRes.json()
+    expect(saved).toMatchObject({
+      provider: 'openai',
+      label: 'OpenAI Admin',
+      status: 'untested',
+      api_key_masked: '****1234',
+    })
+    expect(JSON.stringify(saved)).not.toContain('sk-admin-costs-secret1234')
+    expect(saved.secret_ref).toBeUndefined()
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      object: 'page',
+      data: [],
+      has_more: false,
+      next_page: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const testRes = await app.request('/api/agent-cost/providers/openai/test', { method: 'POST' })
+
+    expect(testRes.status).toBe(200)
+    const testBody = await testRes.json()
+    expect(testBody).toMatchObject({ ok: true, provider: 'openai', status: 'ok' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('https://api.openai.com/v1/organization/costs')
+    expect(String(url)).toContain('start_time=')
+    expect(String(url)).toContain('limit=1')
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer sk-admin-costs-secret1234',
+      'Content-Type': 'application/json',
+    })
+
+    const listRes = await app.request('/api/agent-cost/providers')
+    expect(listRes.status).toBe(200)
+    const list = await listRes.json()
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ provider: 'openai', status: 'ok', api_key_masked: '****1234' })
+    expect(JSON.stringify(list)).not.toContain('sk-admin-costs-secret1234')
+
+    const deleteRes = await app.request('/api/agent-cost/providers/openai', { method: 'DELETE' })
+    expect(deleteRes.status).toBe(200)
+
+    const emptyRes = await app.request('/api/agent-cost/providers')
+    expect(await emptyRes.json()).toEqual([])
+  })
+
+  it('syncs OpenAI cost rows idempotently and records unassigned imports', async () => {
+    await app.request('/api/agent-cost/providers/openai', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'OpenAI Admin', api_key: 'sk-admin-costs-secret1234' }),
+    })
+
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      object: 'page',
+      data: [
+        {
+          object: 'bucket',
+          start_time: 1772380800,
+          end_time: 1772467200,
+          results: [
+            {
+              object: 'organization.costs.result',
+              amount: { value: 1.23, currency: 'usd' },
+              line_item: 'GPT-5 input tokens',
+              project_id: 'proj_openai_123',
+            },
+            {
+              object: 'organization.costs.result',
+              amount: { value: 2.5, currency: 'usd' },
+              line_item: 'Codex usage',
+              project_id: null,
+            },
+          ],
+        },
+      ],
+      has_more: false,
+      next_page: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const firstSync = await app.request('/api/agent-cost/providers/openai/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(firstSync.status).toBe(200)
+    expect(await firstSync.json()).toMatchObject({
+      provider: 'openai',
+      imported: 2,
+      skipped: 0,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const secondSync = await app.request('/api/agent-cost/providers/openai/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(secondSync.status).toBe(200)
+    expect(await secondSync.json()).toMatchObject({
+      provider: 'openai',
+      imported: 0,
+      skipped: 2,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const listRes = await app.request('/api/agent-cost/events')
+    const page = await listRes.json()
+    expect(page.items).toHaveLength(2)
+    expect(page.items[0]).toMatchObject({
+      provider: 'openai',
+      source: 'official_api',
+      provider_project_id: 'proj_openai_123',
+      line_item: 'GPT-5 input tokens',
+      amount: '1.23',
+      currency: 'USD',
+      project_id: null,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('agent cost project mappings', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('applies mapping precedence and exposes the unassigned queue', async () => {
+    const providerProject = await createProject(app, 'Provider Project Match')
+    const apiKeyProject = await createProject(app, 'API Key Match')
+    const lineItemProject = await createProject(app, 'Line Item Match')
+
+    await createMapping(app, {
+      provider: 'openai',
+      match_type: 'line_item',
+      match_value: 'Codex usage',
+      project_id: lineItemProject.id,
+    })
+    await createMapping(app, {
+      provider: 'openai',
+      match_type: 'api_key_id',
+      match_value: 'key_agent',
+      project_id: apiKeyProject.id,
+    })
+    await createMapping(app, {
+      provider: 'openai',
+      match_type: 'provider_project_id',
+      match_value: 'proj_openai_123',
+      project_id: providerProject.id,
+    })
+
+    const providerProjectEvent = await createCostEvent(app, {
+      provider_project_id: 'proj_openai_123',
+      api_key_id: 'key_agent',
+      line_item: 'Codex usage',
+    })
+    expect(providerProjectEvent.project_id).toBe(providerProject.id)
+
+    const apiKeyEvent = await createCostEvent(app, {
+      api_key_id: 'key_agent',
+      line_item: 'Codex usage',
+    })
+    expect(apiKeyEvent.project_id).toBe(apiKeyProject.id)
+
+    const lineItemEvent = await createCostEvent(app, {
+      line_item: 'Codex usage',
+    })
+    expect(lineItemEvent.project_id).toBe(lineItemProject.id)
+
+    const unmappedEvent = await createCostEvent(app, {
+      line_item: 'Unmapped usage',
+    })
+    expect(unmappedEvent.project_id).toBeNull()
+
+    const unassignedRes = await app.request('/api/agent-cost/events?assignment=unassigned')
+    expect(unassignedRes.status).toBe(200)
+    const unassignedPage = await unassignedRes.json()
+    expect(unassignedPage.items).toHaveLength(1)
+    expect(unassignedPage.items[0].id).toBe(unmappedEvent.id)
+
+    const assignRes = await app.request(`/api/agent-cost/events/${unmappedEvent.id}/project`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: lineItemProject.id }),
+    })
+    expect(assignRes.status).toBe(200)
+    expect(await assignRes.json()).toMatchObject({ id: unmappedEvent.id, project_id: lineItemProject.id })
+
+    const emptyUnassignedRes = await app.request('/api/agent-cost/events?assignment=unassigned')
+    expect((await emptyUnassignedRes.json()).items).toEqual([])
+  })
+})
+
+async function createProject(app: ReturnType<typeof createApp>, name: string): Promise<{ id: string }> {
+  const res = await app.request('/api/projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  expect(res.status).toBe(201)
+  return await res.json()
+}
+
+async function createMapping(
+  app: ReturnType<typeof createApp>,
+  body: { provider: string; match_type: string; match_value: string; project_id: string },
+): Promise<void> {
+  const res = await app.request('/api/agent-cost/mappings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  expect(res.status).toBe(201)
+}
+
+async function createCostEvent(
+  app: ReturnType<typeof createApp>,
+  keys: { provider_project_id?: string; api_key_id?: string; line_item?: string },
+): Promise<{ id: string; project_id: string | null }> {
+  const res = await app.request('/api/agent-cost/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'openai',
+      amount: '4.00',
+      currency: 'usd',
+      usage_start: 1772380800,
+      usage_end: 1772467200,
+      ...keys,
+    }),
+  })
+  expect(res.status).toBe(201)
+  return await res.json()
+}

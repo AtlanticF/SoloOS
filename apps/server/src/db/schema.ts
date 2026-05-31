@@ -153,3 +153,62 @@ export const output_metadata = sqliteTable('output_metadata', {
 }, (t) => ({
   uniq_repo_commit: uniqueIndex('output_metadata_repo_commit_uniq').on(t.repo_id, t.commit_sha),
 }))
+
+export const agent_cost_provider_configs = sqliteTable('agent_cost_provider_configs', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  label: text('label').notNull(),
+  secret_ref: text('secret_ref').notNull(),
+  status: text('status').notNull().default('untested'),
+  last_tested_at: integer('last_tested_at'),
+  last_error: text('last_error'),
+  created_at: integer('created_at').notNull(),
+  updated_at: integer('updated_at').notNull(),
+})
+
+export const agent_cost_events = sqliteTable('agent_cost_events', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  source: text('source').notNull(),
+  project_id: text('project_id').references(() => projects.id),
+  provider_project_id: text('provider_project_id'),
+  api_key_id: text('api_key_id'),
+  line_item: text('line_item'),
+  model: text('model'),
+  tool_label: text('tool_label'),
+  amount: text('amount').notNull(),
+  currency: text('currency').notNull(),
+  usage_start: integer('usage_start').notNull(),
+  usage_end: integer('usage_end').notNull(),
+  idempotency_key: text('idempotency_key').notNull(),
+  raw_metadata: text('raw_metadata').notNull().default('{}'),
+  created_at: integer('created_at').notNull(),
+  updated_at: integer('updated_at').notNull(),
+}, (t) => ({
+  uniq_idempotency_key: uniqueIndex('agent_cost_events_idempotency_key_uniq').on(t.idempotency_key),
+  idx_project_usage: index('idx_agent_cost_events_project_usage').on(t.project_id, t.usage_start),
+  idx_provider_usage: index('idx_agent_cost_events_provider_usage').on(t.provider, t.usage_start),
+}))
+
+export const agent_cost_project_mappings = sqliteTable('agent_cost_project_mappings', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  match_type: text('match_type').notNull(),
+  match_value: text('match_value').notNull(),
+  project_id: text('project_id').notNull().references(() => projects.id),
+  created_at: integer('created_at').notNull(),
+  updated_at: integer('updated_at').notNull(),
+}, (t) => ({
+  uniq_mapping: uniqueIndex('agent_cost_project_mappings_provider_match_uniq').on(t.provider, t.match_type, t.match_value),
+  idx_project: index('idx_agent_cost_project_mappings_project').on(t.project_id),
+}))
+
+export const agent_cost_sync_state = sqliteTable('agent_cost_sync_state', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull().unique(),
+  last_synced_at: integer('last_synced_at'),
+  sync_status: text('sync_status').notNull().default('idle'),
+  error_message: text('error_message'),
+  created_at: integer('created_at').notNull(),
+  updated_at: integer('updated_at').notNull(),
+})

@@ -1,9 +1,13 @@
 import { Hono } from 'hono'
 import { and, eq, gte, lte } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import type { AgentCostDecision, CompleteReviewRequest } from '@soloos/shared'
 import type { DB } from '../db/index'
 import * as schema from '../db/schema'
 import { parseJsonColumn } from '../util/json-column'
+import { summarizeAgentCostsForPeriod } from '../agent-cost/agent-cost-service'
+
+const AGENT_COST_DECISIONS: AgentCostDecision[] = ['continue', 'pause', 'kill', 'double_down']
 
 function getWeekBounds(now = Date.now()): { start: number; end: number } {
   const d = new Date(now)
@@ -50,17 +54,33 @@ export function reviewsRouter(db: DB) {
       review = newReview
     }
 
-    return c.json(deserialize(review))
+    return c.json(await deserialize(db, review))
   })
 
   app.post('/:id/complete', async (c) => {
     const { id } = c.req.param()
-    let body: { reflection: string }
+    let body: CompleteReviewRequest
     try {
       body = await c.req.json()
     } catch {
       return c.json({ error: 'invalid JSON' }, 400)
     }
+
+    const rows = await db
+      .select()
+      .from(schema.reviews)
+      .where(eq(schema.reviews.id, id))
+      .limit(1)
+    const review = rows[0]
+    if (!review) {
+      return c.json({ error: 'review not found' }, 404)
+    }
+
+    const agentCostSummary = await summarizeAgentCostsForPeriod(db, review.period_start, review.period_end)
+    if (Number(agentCostSummary.total_amount) > 0 && !isAgentCostDecision(body.agent_cost_decision)) {
+      return c.json({ error: 'agent_cost_decision is required' }, 400)
+    }
+
     const now = Math.floor(Date.now() / 1000)
     const updated = await db.update(schema.reviews)
       .set({ reflection: body.reflection, completed_at: now })
@@ -75,6 +95,14 @@ export function reviewsRouter(db: DB) {
   return app
 }
 
-function deserialize(row: typeof schema.reviews.$inferSelect) {
-  return { ...row, snapshot: parseJsonColumn<unknown[]>(row.snapshot, []) }
+function isAgentCostDecision(value: unknown): value is AgentCostDecision {
+  return typeof value === 'string' && AGENT_COST_DECISIONS.includes(value as AgentCostDecision)
+}
+
+async function deserialize(db: DB, row: typeof schema.reviews.$inferSelect) {
+  return {
+    ...row,
+    snapshot: parseJsonColumn<unknown[]>(row.snapshot, []),
+    agent_cost_summary: await summarizeAgentCostsForPeriod(db, row.period_start, row.period_end),
+  }
 }

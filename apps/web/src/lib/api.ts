@@ -2,7 +2,7 @@ import type {
   Entry, Event, Project, Review, Insight, CaptureResult, AgentConfig, AgentConfigInput, Pillar,
   OutputEvent, OutputSummary, OutputEventsPage, RepoBinding, RepoSyncState,
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
-  Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse,
+  Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
 } from '@soloos/shared'
 
 const BASE = '/api'
@@ -63,8 +63,8 @@ export const api = {
   },
   reviews: {
     current: () => get<Review>('/reviews/current'),
-    complete: (id: string, reflection: string) =>
-      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection }),
+    complete: (id: string, reflection: string, agentCostDecision?: AgentCostDecision) =>
+      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection, agent_cost_decision: agentCostDecision }),
   },
   insights: {
     list: (params?: { status?: string; type?: string }) => {
@@ -85,6 +85,7 @@ export const api = {
   },
   output: {
     summary: () => get<OutputSummary>('/output/summary'),
+    projectEconomics: () => get<ProjectEconomics[]>('/output/project-economics'),
     eventById: (eventId: string) => get<OutputEvent>(`/output/events/${eventId}`),
     events: (params?: { cursor?: string; limit?: number; repoId?: number; projectId?: string; state?: OutputLifecycleState }) => {
       const q = new URLSearchParams(
@@ -151,6 +152,7 @@ export const queryKeys = {
   agentConfig: () => ['agent-config'] as const,
   agentHealth: () => ['agent-health'] as const,
   outputSummary: () => ['output', 'summary'] as const,
+  projectEconomics: () => ['output', 'project-economics'] as const,
   outputEvents: (params?: object) => ['output', 'events', params] as const,
   outputSyncStatus: () => ['output', 'sync-status'] as const,
   outputBindings: () => ['output', 'repo-bindings'] as const,
@@ -159,4 +161,4 @@ export const queryKeys = {
   associations: (params?: object) => ['associations', params] as const,
 }
 
-export type { OutputLifecycleState, OutputEvent, OutputSummary, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse }
+export type { OutputLifecycleState, OutputEvent, OutputSummary, ProjectEconomics, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse }
