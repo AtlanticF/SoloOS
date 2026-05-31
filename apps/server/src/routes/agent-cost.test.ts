@@ -322,38 +322,57 @@ describe('official cost provider config and sync', () => {
       api_key_masked: '****1234',
     })
 
-    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
-      usageEvents: [
-        {
-          timestamp: '1772380800000',
-          model: 'claude-4-opus',
-          kind: 'Usage-based',
-          maxMode: true,
-          requestsCosts: 5,
-          isTokenBasedCall: true,
-          tokenUsage: {
-            inputTokens: 126,
-            outputTokens: 450,
-            cacheWriteTokens: 6112,
-            cacheReadTokens: 11964,
-            totalCents: 20.18232,
+    const fetchMock = vi.fn().mockImplementation(async (url: URL | string) => {
+      if (String(url).includes('/teams/spend')) {
+        return new Response(JSON.stringify({
+          teamMemberSpend: [
+            {
+              spendCents: 2450,
+              fastPremiumRequests: 1250,
+              name: 'Alex',
+              email: 'alex@example.com',
+              role: 'member',
+              hardLimitOverrideDollars: 100,
+            },
+          ],
+          subscriptionCycleStart: 1772380800000,
+          totalMembers: 1,
+          totalPages: 1,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({
+        usageEvents: [
+          {
+            timestamp: '1772380800000',
+            model: 'claude-4-opus',
+            kind: 'Usage-based',
+            maxMode: true,
+            requestsCosts: 5,
+            isTokenBasedCall: true,
+            tokenUsage: {
+              inputTokens: 126,
+              outputTokens: 450,
+              cacheWriteTokens: 6112,
+              cacheReadTokens: 11964,
+              totalCents: 20.18232,
+            },
+            userEmail: 'dev@example.com',
           },
-          userEmail: 'dev@example.com',
-        },
-        {
-          timestamp: '1772384400000',
-          model: 'gpt-5',
-          kind: 'Included in Business',
-          maxMode: false,
-          requestsCosts: 1.4,
-          isTokenBasedCall: false,
-          userEmail: 'admin@example.com',
-        },
-      ],
-      totalUsageEventsCount: 2,
-      pagination: { numPages: 1, currentPage: 1, pageSize: 100, hasNextPage: false, hasPreviousPage: false },
-      period: { startDate: 1772380800000, endDate: 1772467200000 },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+          {
+            timestamp: '1772384400000',
+            model: 'gpt-5',
+            kind: 'Included in Business',
+            maxMode: false,
+            requestsCosts: 1.4,
+            isTokenBasedCall: false,
+            userEmail: 'admin@example.com',
+          },
+        ],
+        totalUsageEventsCount: 2,
+        pagination: { numPages: 1, currentPage: 1, pageSize: 100, hasNextPage: false, hasPreviousPage: false },
+        period: { startDate: 1772380800000, endDate: 1772467200000 },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     const testRes = await app.request('/api/agent-cost/providers/cursor/test', { method: 'POST' })
@@ -373,9 +392,9 @@ describe('official cost provider config and sync', () => {
     expect(firstSync.status).toBe(200)
     expect(await firstSync.json()).toMatchObject({
       provider: 'cursor',
-      imported: 2,
+      imported: 3,
       skipped: 0,
-      unassigned: 2,
+      unassigned: 3,
       status: 'success',
     })
 
@@ -388,13 +407,13 @@ describe('official cost provider config and sync', () => {
     expect(await secondSync.json()).toMatchObject({
       provider: 'cursor',
       imported: 0,
-      skipped: 2,
-      unassigned: 2,
+      skipped: 3,
+      unassigned: 3,
       status: 'success',
     })
 
     const page = await (await app.request('/api/agent-cost/events')).json()
-    expect(page.items).toHaveLength(2)
+    expect(page.items).toHaveLength(3)
     const usageBasedEvent = page.items.find((item: { provider_project_id: string }) => (
       item.provider_project_id === 'dev@example.com'
     ))
@@ -407,6 +426,14 @@ describe('official cost provider config and sync', () => {
       amount: '0.20',
       currency: 'USD',
     })
+    expect(page.items).toContainEqual(expect.objectContaining({
+      provider: 'cursor',
+      source: 'official_api',
+      provider_project_id: 'alex@example.com',
+      line_item: 'Team member spend',
+      amount: '24.50',
+      currency: 'USD',
+    }))
   })
 })
 

@@ -32,10 +32,11 @@ export interface AgentCostProviderTestResult {
   error?: string
 }
 
-export interface OpenAIAgentCostSyncRequest {
+export interface OfficialAgentCostSyncRequest {
   start_time: number
   end_time?: number
 }
+export type OpenAIAgentCostSyncRequest = OfficialAgentCostSyncRequest
 
 export interface AgentCostSyncResult {
   provider: Exclude<AgentCostProvider, 'manual'>

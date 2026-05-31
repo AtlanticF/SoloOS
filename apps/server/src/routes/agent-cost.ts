@@ -6,7 +6,7 @@ import {
   type AssignAgentCostEventProjectRequest,
   type CreateAgentCostProjectMappingRequest,
   type CreateManualAgentCostEventRequest,
-  type OpenAIAgentCostSyncRequest,
+  type OfficialAgentCostSyncRequest,
   type UpsertAgentCostProviderConfigRequest,
 } from '@soloos/shared'
 import type { DB } from '../db/index'
@@ -214,7 +214,7 @@ function parseProviderConfig(body: unknown): { value: UpsertAgentCostProviderCon
   }
 }
 
-function parseOpenAISyncRequest(body: unknown): { value: OpenAIAgentCostSyncRequest } | { error: string } {
+function parseOpenAISyncRequest(body: unknown): { value: OfficialAgentCostSyncRequest } | { error: string } {
   if (!isRecord(body)) return { error: 'body must be an object' }
   if (!isPositiveUnixTimestamp(body.start_time)) {
     return { error: 'start_time must be a unix timestamp' }

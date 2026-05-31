@@ -4,7 +4,7 @@ import type {
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
   Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
   AgentCostProvider, AgentCostProviderConfig, UpsertAgentCostProviderConfigRequest,
-  AgentCostProviderTestResult, OpenAIAgentCostSyncRequest, AgentCostSyncResult,
+  AgentCostProviderTestResult, OfficialAgentCostSyncRequest, AgentCostSyncResult,
   AgentCostEventsPage, AssignAgentCostEventProjectRequest,
 } from '@soloos/shared'
 
@@ -127,7 +127,7 @@ export const api = {
       del<{ ok: boolean }>(`/agent-cost/providers/${provider}`),
     testProvider: (provider: Exclude<AgentCostProvider, 'manual'>) =>
       post<AgentCostProviderTestResult>(`/agent-cost/providers/${provider}/test`, {}),
-    syncProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: OpenAIAgentCostSyncRequest) =>
+    syncProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: OfficialAgentCostSyncRequest) =>
       post<AgentCostSyncResult>(`/agent-cost/providers/${provider}/sync`, body),
     events: (params?: { assignment?: 'unassigned'; limit?: number }) => {
       const q = new URLSearchParams(

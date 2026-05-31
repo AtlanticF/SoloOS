@@ -1,7 +1,7 @@
 ---
 plan: agent-cost-provider-ui
 seq: 0006
-stage: implement
+stage: evaluate
 owner: main
 mode: full
 eval: L2
@@ -65,8 +65,10 @@ eval: L2
 
 ## Now
 
-- Run final verification, GitNexus change detection, and commit the product
-  changes without mixing unrelated GitNexus migration files.
+- Await L2 evaluator rerun. First L2 evaluation failed Issue 3 because Cursor
+  sync imported usage events but not `/teams/spend`; the fix is implemented and
+  local verification is green, but Codex evaluator rerun is blocked by usage
+  limits until 2026-05-31 19:55.
 
 ## Decisions log
 
@@ -75,3 +77,6 @@ eval: L2
 - 2026-05-31: Implemented official cost provider ingestion for OpenAI,
   Anthropic, and Cursor, plus Settings UI for provider operations and
   unassigned-cost assignment.
+- 2026-05-31: L2 evaluation failed once on Issue 3: Cursor lacked
+  `/teams/spend` ingestion. Added Cursor spend import, raw metadata storage,
+  idempotency coverage, and provider-neutral sync request naming.

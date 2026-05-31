@@ -10,7 +10,7 @@ import type {
   AssignAgentCostEventProjectRequest,
   CreateAgentCostProjectMappingRequest,
   CreateManualAgentCostEventRequest,
-  OpenAIAgentCostSyncRequest,
+  OfficialAgentCostSyncRequest,
   UpsertAgentCostProviderConfigRequest,
 } from '@soloos/shared'
 import type { DB } from '../db/index'
@@ -23,6 +23,7 @@ type CostMappingType = CreateAgentCostProjectMappingRequest['match_type']
 const OPENAI_COSTS_URL = 'https://api.openai.com/v1/organization/costs'
 const ANTHROPIC_COSTS_URL = 'https://api.anthropic.com/v1/organizations/cost_report'
 const CURSOR_USAGE_EVENTS_URL = 'https://api.cursor.com/teams/filtered-usage-events'
+const CURSOR_SPEND_URL = 'https://api.cursor.com/teams/spend'
 const MAPPING_PRECEDENCE: CostMappingType[] = ['provider_project_id', 'api_key_id', 'line_item']
 
 export async function listAgentCostProviderConfigs(db: DB): Promise<AgentCostProviderConfig[]> {
@@ -106,7 +107,7 @@ export async function testAgentCostProviderConfig(db: DB, provider: CostProvider
 
 export async function syncOpenAICosts(
   db: DB,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
 ): Promise<AgentCostSyncResult> {
   return syncOfficialProviderCosts(db, 'openai', input)
 }
@@ -114,7 +115,7 @@ export async function syncOpenAICosts(
 export async function syncOfficialProviderCosts(
   db: DB,
   provider: CostProvider,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
 ): Promise<AgentCostSyncResult> {
   const row = await getProviderConfigRaw(db, provider)
   if (!row) {
@@ -248,7 +249,7 @@ async function testCostProviderConnection(provider: CostProvider, apiKey: string
 async function fetchOfficialCostRows(
   provider: CostProvider,
   apiKey: string,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
   limit?: number,
 ): Promise<OfficialCostRow[]> {
   if (provider === 'openai') {
@@ -272,7 +273,7 @@ async function fetchOfficialCostRows(
 
 async function fetchOpenAICostBuckets(
   apiKey: string,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
   limit = 180,
 ): Promise<OpenAICostBucket[]> {
   const buckets: OpenAICostBucket[] = []
@@ -306,7 +307,7 @@ async function fetchOpenAICostBuckets(
 
 async function fetchAnthropicCostRows(
   apiKey: string,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
   limit = 31,
 ): Promise<OfficialCostRow[]> {
   const rows: OfficialCostRow[] = []
@@ -359,7 +360,17 @@ async function fetchAnthropicCostRows(
 
 async function fetchCursorCostRows(
   apiKey: string,
-  input: OpenAIAgentCostSyncRequest,
+  input: OfficialAgentCostSyncRequest,
+  limit = 100,
+): Promise<OfficialCostRow[]> {
+  const rows = await fetchCursorUsageEventRows(apiKey, input, limit)
+  rows.push(...await fetchCursorSpendRows(apiKey, input, limit))
+  return rows
+}
+
+async function fetchCursorUsageEventRows(
+  apiKey: string,
+  input: OfficialAgentCostSyncRequest,
   limit = 100,
 ): Promise<OfficialCostRow[]> {
   const rows: OfficialCostRow[] = []
@@ -370,7 +381,7 @@ async function fetchCursorCostRows(
     const res = await fetch(CURSOR_USAGE_EVENTS_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`,
+        Authorization: cursorAuthHeader(apiKey),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -407,6 +418,57 @@ async function fetchCursorCostRows(
     hasNextPage = Boolean(body.pagination?.hasNextPage)
     page += 1
   } while (hasNextPage)
+
+  return rows
+}
+
+async function fetchCursorSpendRows(
+  apiKey: string,
+  input: OfficialAgentCostSyncRequest,
+  limit = 100,
+): Promise<OfficialCostRow[]> {
+  const rows: OfficialCostRow[] = []
+  let page = 1
+  let totalPages = 1
+
+  do {
+    const res = await fetch(CURSOR_SPEND_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: cursorAuthHeader(apiKey),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sortBy: 'amount',
+        sortDirection: 'desc',
+        page,
+        pageSize: limit,
+      }),
+    })
+    if (!res.ok) throw new Error(`cursor_spend_${res.status}`)
+
+    const body = await res.json() as CursorSpendResponse
+    if (!Array.isArray(body.teamMemberSpend)) throw new Error('invalid_cursor_spend_response')
+    const usageStart = Math.floor((body.subscriptionCycleStart ?? input.start_time * 1000) / 1000)
+    const usageEnd = input.end_time ?? Math.floor(Date.now() / 1000)
+
+    for (const member of body.teamMemberSpend) {
+      rows.push({
+        amount: centsToAmount(member.spendCents ?? 0),
+        currency: 'USD',
+        usage_start: usageStart,
+        usage_end: usageEnd,
+        provider_project_id: member.email ?? null,
+        api_key_id: null,
+        line_item: 'Team member spend',
+        model: null,
+        raw_metadata: { member, subscriptionCycleStart: body.subscriptionCycleStart },
+      })
+    }
+
+    totalPages = Math.max(1, body.totalPages ?? 1)
+    page += 1
+  } while (page <= totalPages)
 
   return rows
 }
@@ -675,6 +737,10 @@ function centsToAmount(value: string | number): string {
   return (Number(value) / 100).toFixed(2)
 }
 
+function cursorAuthHeader(apiKey: string): string {
+  return `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`
+}
+
 function toIso(seconds: number): string {
   return new Date(seconds * 1000).toISOString()
 }
@@ -752,4 +818,19 @@ interface CursorUsageEvent {
     totalCents?: number
   }
   userEmail?: string | null
+}
+
+interface CursorSpendResponse {
+  teamMemberSpend?: CursorSpendMember[]
+  subscriptionCycleStart?: number
+  totalPages?: number
+}
+
+interface CursorSpendMember {
+  spendCents?: number
+  fastPremiumRequests?: number
+  name?: string
+  email?: string | null
+  role?: string
+  hardLimitOverrideDollars?: number
 }
