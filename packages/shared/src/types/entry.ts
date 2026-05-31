@@ -1,4 +1,4 @@
-import type { Pillar } from './pillar'
+import type { Pillar } from './pillar.js'
 
 export type EntryStatus = 'pending' | 'processed'
 export type EntrySource = 'cli' | 'github' | 'stripe' | 'browser-ext'

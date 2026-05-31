@@ -1,5 +1,5 @@
-import type { Pillar } from './pillar'
-import type { AgentCostPeriodSummary } from './agent-cost'
+import type { Pillar } from './pillar.js'
+import type { AgentCostPeriodSummary } from './agent-cost.js'
 
 export type ReviewPeriod = 'weekly' | 'monthly'
 export type AgentCostDecision = 'continue' | 'pause' | 'kill' | 'double_down'

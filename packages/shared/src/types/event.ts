@@ -1,4 +1,4 @@
-import type { Pillar } from './pillar'
+import type { Pillar } from './pillar.js'
 
 export type Classifier = 'rule' | 'api-key' | 'skill' | 'human'
 
