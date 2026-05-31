@@ -1,0 +1,74 @@
+Migration inventory:
+  active: instruction files - 2 found
+    - CLAUDE.md
+    - AGENTS.md
+  active: skills - 15 found
+    - checkpoint
+    - clean-code
+    - evaluate
+    - five-step
+    - founder-check
+    - garden
+    - grill-me
+    - ralph-loop
+    - refactor
+    - release
+    - slice-coding
+    - stage-viewer
+    - tdd
+    - to-issues
+    - to-prd
+  inactive: command sources - none found
+  active: subagents - 5 found
+    - evaluator
+    - explorer
+    - gardener
+    - generator
+    - planner
+Migration surfaces:
+  active: AGENTS.md - 1 instruction file(s) found.
+  active: skills - 15 skill(s) converted.
+  inactive: MCP config - No settings or MCP config found.
+  active: subagents - 5 subagent(s) converted.
+Migration report:
+  manual_fix_required: AGENTS.md - Generated copy contains Claude-only instruction semantics.
+  rewritten: .agents/skills/checkpoint/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/clean-code/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/evaluate/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/five-step/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/founder-check/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/garden/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/grill-me/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/ralph-loop/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/refactor/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/release/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/slice-coding/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/stage-viewer/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/tdd/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/to-issues/SKILL.md - Converted Claude skill.
+  rewritten: .agents/skills/to-prd/SKILL.md - Converted Claude skill.
+  manual_fix_required: .codex/agents/evaluator.toml - Manual review required for Claude subagent fields: `skills`, `tools`.
+  manual_fix_required: .codex/agents/explorer.toml - Manual review required for Claude subagent fields: `tools`.
+  manual_fix_required: .codex/agents/gardener.toml - Manual review required for Claude subagent fields: `skills`, `tools`.
+  manual_fix_required: .codex/agents/generator.toml - Manual review required for Claude subagent fields: `skills`, `tools`.
+  manual_fix_required: .codex/agents/planner.toml - Manual review required for Claude subagent fields: `skills`, `tools`.
+  overwritten: .agents/skills/five-step - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/founder-check - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/grill-me - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/stage-viewer - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/garden - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/refactor - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/evaluate - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/release - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/to-issues - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/checkpoint - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/tdd - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/to-prd - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/clean-code - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/slice-coding - Existing Codex skill will be replaced.
+  overwritten: .agents/skills/ralph-loop - Existing Codex skill will be replaced.
+  overwritten: .codex/agents/planner.toml - Existing Codex subagent will be replaced.
+  overwritten: .codex/agents/explorer.toml - Existing Codex subagent will be replaced.
+  overwritten: .codex/agents/generator.toml - Existing Codex subagent will be replaced.
+  overwritten: .codex/agents/evaluator.toml - Existing Codex subagent will be replaced.
+  overwritten: .codex/agents/gardener.toml - Existing Codex subagent will be replaced.
