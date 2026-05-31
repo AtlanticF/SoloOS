@@ -90,6 +90,21 @@ export const api = {
         test: () => post('/github-config/test', {}),
         repos: () => get('/github-config/repos'),
     },
+    agentCost: {
+        providers: () => get('/agent-cost/providers'),
+        saveProvider: (provider, body) => put(`/agent-cost/providers/${provider}`, body),
+        deleteProvider: (provider) => del(`/agent-cost/providers/${provider}`),
+        testProvider: (provider) => post(`/agent-cost/providers/${provider}/test`, {}),
+        syncProvider: (provider, body) => post(`/agent-cost/providers/${provider}/sync`, body),
+        events: (params) => {
+            const q = new URLSearchParams(Object.fromEntries(Object.entries({
+                assignment: params?.assignment,
+                limit: params?.limit?.toString(),
+            }).filter(([, v]) => v !== undefined))).toString();
+            return get(`/agent-cost/events${q ? `?${q}` : ''}`);
+        },
+        assignProject: (eventId, body) => put(`/agent-cost/events/${eventId}/project`, body),
+    },
     associations: {
         list: (params) => {
             const q = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined))).toString();
@@ -115,5 +130,7 @@ export const queryKeys = {
     outputBindings: () => ['output', 'repo-bindings'],
     githubConfig: () => ['github-config'],
     githubRepos: () => ['github-config', 'repos'],
+    agentCostProviders: () => ['agent-cost', 'providers'],
+    agentCostEvents: (params) => ['agent-cost', 'events', params],
     associations: (params) => ['associations', params],
 };

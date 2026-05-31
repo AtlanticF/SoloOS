@@ -17,7 +17,7 @@ import {
   deleteAgentCostProviderConfig,
   listAgentCostEvents,
   listAgentCostProviderConfigs,
-  syncOpenAICosts,
+  syncOfficialProviderCosts,
   testAgentCostProviderConfig,
   upsertAgentCostProviderConfig,
 } from '../agent-cost/agent-cost-service'
@@ -48,7 +48,10 @@ export function agentCostRouter(db: DB) {
     return c.json(mapping, 201)
   })
 
-  app.put('/providers/openai', async (c) => {
+  app.put('/providers/:provider', async (c) => {
+    const provider = parseOfficialProvider(c.req.param('provider'))
+    if (!provider) return c.json({ error: 'provider is invalid' }, 400)
+
     let body: unknown
     try {
       body = await c.req.json()
@@ -59,21 +62,30 @@ export function agentCostRouter(db: DB) {
     const input = parseProviderConfig(body)
     if ('error' in input) return c.json({ error: input.error }, 400)
 
-    const config = await upsertAgentCostProviderConfig(db, 'openai', input.value)
+    const config = await upsertAgentCostProviderConfig(db, provider, input.value)
     return c.json(config)
   })
 
-  app.delete('/providers/openai', async (c) => {
-    await deleteAgentCostProviderConfig(db, 'openai')
+  app.delete('/providers/:provider', async (c) => {
+    const provider = parseOfficialProvider(c.req.param('provider'))
+    if (!provider) return c.json({ error: 'provider is invalid' }, 400)
+
+    await deleteAgentCostProviderConfig(db, provider)
     return c.json({ ok: true })
   })
 
-  app.post('/providers/openai/test', async (c) => {
-    const result = await testAgentCostProviderConfig(db, 'openai')
+  app.post('/providers/:provider/test', async (c) => {
+    const provider = parseOfficialProvider(c.req.param('provider'))
+    if (!provider) return c.json({ error: 'provider is invalid' }, 400)
+
+    const result = await testAgentCostProviderConfig(db, provider)
     return c.json(result, result.ok ? 200 : 400)
   })
 
-  app.post('/providers/openai/sync', async (c) => {
+  app.post('/providers/:provider/sync', async (c) => {
+    const provider = parseOfficialProvider(c.req.param('provider'))
+    if (!provider) return c.json({ error: 'provider is invalid' }, 400)
+
     let body: unknown
     try {
       body = await c.req.json()
@@ -84,7 +96,7 @@ export function agentCostRouter(db: DB) {
     const input = parseOpenAISyncRequest(body)
     if ('error' in input) return c.json({ error: input.error }, 400)
 
-    const result = await syncOpenAICosts(db, input.value)
+    const result = await syncOfficialProviderCosts(db, provider, input.value)
     return c.json(result, result.status === 'success' ? 200 : 400)
   })
 
@@ -172,6 +184,10 @@ function parseMappingRequest(body: unknown): { value: CreateAgentCostProjectMapp
       project_id: body.project_id.trim(),
     },
   }
+}
+
+function parseOfficialProvider(provider: string): Exclude<AgentCostProvider, 'manual'> | null {
+  return isNonManualProvider(provider) ? provider : null
 }
 
 function parseAssignProjectRequest(body: unknown): { value: AssignAgentCostEventProjectRequest } | { error: string } {

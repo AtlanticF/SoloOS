@@ -1,4 +1,4 @@
-export const AGENT_COST_PROVIDERS = ['openai', 'anthropic', 'manual'] as const
+export const AGENT_COST_PROVIDERS = ['openai', 'anthropic', 'cursor', 'manual'] as const
 export type AgentCostProvider = typeof AGENT_COST_PROVIDERS[number]
 
 export const AGENT_COST_SOURCES = ['official_api', 'official_export', 'sdk_estimate', 'manual'] as const

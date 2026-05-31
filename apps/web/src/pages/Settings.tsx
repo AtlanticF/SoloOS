@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Check, AlertCircle, Loader2 } from 'lucide-react'
+import { Check, AlertCircle, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { api, queryKeys, type AgentTestResult } from '@/lib/api'
-import type { AgentProvider, AgentConfigInput } from '@soloos/shared'
+import type { AgentProvider, AgentConfigInput, AgentCostProvider, AgentCostSyncResult } from '@soloos/shared'
 import { PROVIDER_DEFAULTS } from '@soloos/shared'
 
 const LANGUAGES = [
@@ -20,6 +20,8 @@ const LANGUAGES = [
 ]
 
 const PROVIDERS: AgentProvider[] = ['openai', 'anthropic', 'google', 'groq', 'ollama', 'custom']
+type OfficialCostProvider = Exclude<AgentCostProvider, 'manual'>
+const COST_PROVIDERS: OfficialCostProvider[] = ['openai', 'anthropic', 'cursor']
 
 const HEALTH_KEY = 'soloos-agent-health'
 
@@ -46,6 +48,18 @@ export function Settings() {
     queryKey: queryKeys.outputBindings(),
     queryFn: api.output.listBindings,
   })
+  const { data: costProviderConfigs = [] } = useQuery({
+    queryKey: queryKeys.agentCostProviders(),
+    queryFn: api.agentCost.providers,
+  })
+  const { data: projects = [] } = useQuery({
+    queryKey: queryKeys.projects(),
+    queryFn: api.projects.list,
+  })
+  const { data: unassignedCosts } = useQuery({
+    queryKey: queryKeys.agentCostEvents({ assignment: 'unassigned', limit: 10 }),
+    queryFn: () => api.agentCost.events({ assignment: 'unassigned', limit: 10 }),
+  })
 
   const [provider, setProvider] = useState<AgentProvider>('openai')
   const [model, setModel] = useState('')
@@ -55,6 +69,13 @@ export function Settings() {
   const [githubToken, setGithubToken] = useState('')
   const [githubTestStatus, setGithubTestStatus] = useState<'idle' | 'ok' | 'error' | 'testing'>('idle')
   const [githubTestMsg, setGithubTestMsg] = useState<string | null>(null)
+  const [costForms, setCostForms] = useState<Record<OfficialCostProvider, { label: string; apiKey: string }>>({
+    openai: { label: '', apiKey: '' },
+    anthropic: { label: '', apiKey: '' },
+    cursor: { label: '', apiKey: '' },
+  })
+  const [costStatus, setCostStatus] = useState<Record<string, string>>({})
+  const [selectedCostProjects, setSelectedCostProjects] = useState<Record<string, string>>({})
 
   const [testPhase, setTestPhase] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle')
   const [errorDetail, setErrorDetail] = useState<AgentTestResult | null>(null)
@@ -153,6 +174,73 @@ export function Settings() {
     },
   })
 
+  const { mutate: saveCostProvider, isPending: savingCostProvider } = useMutation({
+    mutationFn: ({ provider: p, label, apiKey: key }: { provider: OfficialCostProvider; label: string; apiKey: string }) =>
+      api.agentCost.saveProvider(p, { label, api_key: key }),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostProviders() })
+      setCostForms((current) => ({ ...current, [saved.provider]: { label: '', apiKey: '' } }))
+      setCostStatus((current) => ({ ...current, [saved.provider]: t('settings.savedTokenMasked', { token: saved.api_key_masked }) }))
+    },
+    onError: (err, vars) => {
+      setCostStatus((current) => ({ ...current, [vars.provider]: String(err) }))
+    },
+  })
+
+  const { mutate: testCostProvider, isPending: testingCostProvider } = useMutation({
+    mutationFn: (p: OfficialCostProvider) => api.agentCost.testProvider(p),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostProviders() })
+      setCostStatus((current) => ({
+        ...current,
+        [result.provider]: result.ok ? t('settings.testOk') : result.error ?? t('settings.testFailed'),
+      }))
+    },
+    onError: (err, p) => {
+      setCostStatus((current) => ({ ...current, [p]: String(err) }))
+    },
+  })
+
+  const { mutate: syncCostProvider, isPending: syncingCostProvider } = useMutation({
+    mutationFn: (p: OfficialCostProvider) => {
+      const end = Math.floor(Date.now() / 1000)
+      const start = end - 7 * 24 * 60 * 60
+      return api.agentCost.syncProvider(p, { start_time: start, end_time: end })
+    },
+    onSuccess: (result: AgentCostSyncResult) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostProviders() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostEvents({ assignment: 'unassigned', limit: 10 }) })
+      setCostStatus((current) => ({
+        ...current,
+        [result.provider]: t('settings.costSyncResult', {
+          imported: result.imported,
+          skipped: result.skipped,
+          unassigned: result.unassigned,
+        }),
+      }))
+    },
+    onError: (err, p) => {
+      setCostStatus((current) => ({ ...current, [p]: String(err) }))
+    },
+  })
+
+  const { mutate: deleteCostProvider, isPending: deletingCostProvider } = useMutation({
+    mutationFn: (p: OfficialCostProvider) => api.agentCost.deleteProvider(p),
+    onSuccess: (_, p) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostProviders() })
+      setCostStatus((current) => ({ ...current, [p]: t('settings.clear') }))
+    },
+  })
+
+  const { mutate: assignCostProject, isPending: assigningCostProject } = useMutation({
+    mutationFn: ({ eventId, projectId }: { eventId: string; projectId: string }) =>
+      api.agentCost.assignProject(eventId, { project_id: projectId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostEvents({ assignment: 'unassigned', limit: 10 }) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectEconomics() })
+    },
+  })
+
   function handleProviderChange(p: AgentProvider) {
     setProvider(p)
     const defaults = PROVIDER_DEFAULTS[p]
@@ -177,11 +265,25 @@ export function Settings() {
     localStorage.setItem('soloos-lang', code)
   }
 
+  function updateCostForm(p: OfficialCostProvider, patch: Partial<{ label: string; apiKey: string }>) {
+    setCostForms((current) => ({ ...current, [p]: { ...current[p], ...patch } }))
+  }
+
+  function saveCostConfig(p: OfficialCostProvider) {
+    const saved = costProviderConfigs.find((item) => item.provider === p)
+    const form = costForms[p]
+    saveCostProvider({
+      provider: p,
+      label: form.label.trim() || saved?.label || p,
+      apiKey: form.apiKey.trim(),
+    })
+  }
+
   const hasApiKey = !!apiKey.trim()
   const isBusy = saving || testPhase === 'testing'
 
   return (
-    <div className="w-full max-w-xl mx-auto flex flex-col gap-6">
+    <div className="w-full max-w-5xl mx-auto flex flex-col gap-6">
 
       {/* Agent config */}
       <section className="rounded-xl p-5 flex flex-col gap-4"
@@ -424,6 +526,137 @@ export function Settings() {
           <Button variant="outline" onClick={() => navigate('/output')}>
             {t('settings.goToOutputToEdit')}
           </Button>
+        </div>
+      </section>
+
+      {/* Agent cost providers */}
+      <section className="rounded-xl p-5 flex flex-col gap-4"
+               style={{ background: '#111', border: '1px solid #1e1e22' }}>
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-widest block mb-0.5"
+                style={{ color: '#52525b' }}>
+            {t('settings.agentCostProviders')}
+          </span>
+          <p className="text-xs mt-1" style={{ color: '#71717a' }}>
+            {t('settings.agentCostProvidersDesc')}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          {COST_PROVIDERS.map((p) => {
+            const saved = costProviderConfigs.find((item) => item.provider === p)
+            const busy = savingCostProvider || testingCostProvider || syncingCostProvider || deletingCostProvider
+            return (
+              <div key={p} className="rounded-lg border p-3 flex flex-col gap-3" style={{ borderColor: '#27272a', background: '#18181b' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold capitalize" style={{ color: '#e4e4e7' }}>{p}</div>
+                    <div className="text-[11px] font-mono" style={{ color: saved ? '#4ade80' : '#52525b' }}>
+                      {saved ? saved.api_key_masked : t('settings.noConfig')}
+                    </div>
+                  </div>
+                  {saved && (
+                    <span className="text-[11px] px-2 py-0.5 rounded capitalize" style={{
+                      background: saved.status === 'ok' ? '#14532d20' : saved.status === 'error' ? '#7f1d1d20' : '#3f3f4620',
+                      color: saved.status === 'ok' ? '#4ade80' : saved.status === 'error' ? '#fca5a5' : '#a1a1aa',
+                    }}>
+                      {saved.status}
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  value={costForms[p].label}
+                  onChange={e => updateCostForm(p, { label: e.target.value })}
+                  placeholder={saved?.label ?? `${p} team`}
+                  className="rounded-lg px-3 py-2 text-xs"
+                  style={{ background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                />
+                <input
+                  type="password"
+                  value={costForms[p].apiKey}
+                  onChange={e => updateCostForm(p, { apiKey: e.target.value })}
+                  placeholder={t('settings.costApiKeyPlaceholder')}
+                  className="rounded-lg px-3 py-2 text-xs font-mono"
+                  style={{ background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                />
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => saveCostConfig(p)} disabled={!costForms[p].apiKey.trim() || busy}>
+                    {savingCostProvider ? <Loader2 size={13} className="animate-spin" /> : t('settings.save')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => testCostProvider(p)} disabled={!saved || busy}>
+                    {testingCostProvider ? <Loader2 size={13} className="animate-spin" /> : t('settings.testConnection')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => syncCostProvider(p)} disabled={!saved || busy} className="gap-1.5">
+                    {syncingCostProvider ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                    {t('settings.sync')}
+                  </Button>
+                  {saved && (
+                    <Button size="sm" variant="outline" onClick={() => deleteCostProvider(p)} disabled={busy} style={{ borderColor: '#ef444433', color: '#ef4444' }}>
+                      <Trash2 size={13} />
+                    </Button>
+                  )}
+                </div>
+
+                {costStatus[p] && (
+                  <div className="text-[11px] rounded px-2 py-1" style={{ background: '#111', color: '#a1a1aa' }}>
+                    {costStatus[p]}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="rounded-lg border" style={{ borderColor: '#27272a' }}>
+          <div className="px-3 py-2 border-b flex items-center justify-between gap-3" style={{ borderColor: '#27272a' }}>
+            <div>
+              <div className="text-xs font-medium" style={{ color: '#e4e4e7' }}>{t('settings.unassignedCosts')}</div>
+              <div className="text-[11px]" style={{ color: '#71717a' }}>{t('settings.unassignedCostsDesc')}</div>
+            </div>
+            <span className="text-xs font-mono" style={{ color: '#a1a1aa' }}>{unassignedCosts?.items.length ?? 0}</span>
+          </div>
+          {!unassignedCosts || unassignedCosts.items.length === 0 ? (
+            <div className="px-3 py-3 text-xs" style={{ color: '#52525b' }}>
+              {t('settings.noUnassignedCosts')}
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: '#18181b' }}>
+              {unassignedCosts.items.map((event) => (
+                <div key={event.id} className="grid gap-2 px-3 py-2 md:grid-cols-[1fr_180px_auto] md:items-center" style={{ borderColor: '#18181b' }}>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate" style={{ color: '#e4e4e7' }}>
+                      {event.provider} · {event.model ?? event.line_item ?? event.provider_project_id ?? event.id}
+                    </div>
+                    <div className="text-[11px] font-mono truncate" style={{ color: '#71717a' }}>
+                      {event.currency} {event.amount} · {event.provider_project_id ?? event.line_item ?? '-'}
+                    </div>
+                  </div>
+                  <select
+                    value={selectedCostProjects[event.id] ?? ''}
+                    onChange={e => setSelectedCostProjects((current) => ({ ...current, [event.id]: e.target.value }))}
+                    className="rounded-lg px-3 py-2 text-xs"
+                    style={{ background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                  >
+                    <option value="">{t('settings.chooseProject')}</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!selectedCostProjects[event.id] || assigningCostProject}
+                    onClick={() => assignCostProject({ eventId: event.id, projectId: selectedCostProjects[event.id] })}
+                  >
+                    {assigningCostProject ? t('settings.assigning') : t('settings.assign')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

@@ -3,6 +3,9 @@ import type {
   OutputEvent, OutputSummary, OutputEventsPage, RepoBinding, RepoSyncState,
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
   Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
+  AgentCostProvider, AgentCostProviderConfig, UpsertAgentCostProviderConfigRequest,
+  AgentCostProviderTestResult, OpenAIAgentCostSyncRequest, AgentCostSyncResult,
+  AgentCostEventsPage, AssignAgentCostEventProjectRequest,
 } from '@soloos/shared'
 
 const BASE = '/api'
@@ -116,6 +119,30 @@ export const api = {
     test: () => post<{ ok: boolean; login?: string; scopes?: string; error?: string }>('/github-config/test', {}),
     repos: () => get<{ repos: GithubRepo[] }>('/github-config/repos'),
   },
+  agentCost: {
+    providers: () => get<AgentCostProviderConfig[]>('/agent-cost/providers'),
+    saveProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: UpsertAgentCostProviderConfigRequest) =>
+      put<AgentCostProviderConfig>(`/agent-cost/providers/${provider}`, body),
+    deleteProvider: (provider: Exclude<AgentCostProvider, 'manual'>) =>
+      del<{ ok: boolean }>(`/agent-cost/providers/${provider}`),
+    testProvider: (provider: Exclude<AgentCostProvider, 'manual'>) =>
+      post<AgentCostProviderTestResult>(`/agent-cost/providers/${provider}/test`, {}),
+    syncProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: OpenAIAgentCostSyncRequest) =>
+      post<AgentCostSyncResult>(`/agent-cost/providers/${provider}/sync`, body),
+    events: (params?: { assignment?: 'unassigned'; limit?: number }) => {
+      const q = new URLSearchParams(
+        Object.fromEntries(
+          Object.entries({
+            assignment: params?.assignment,
+            limit: params?.limit?.toString(),
+          }).filter(([, v]) => v !== undefined)
+        ) as Record<string, string>
+      ).toString()
+      return get<AgentCostEventsPage>(`/agent-cost/events${q ? `?${q}` : ''}`)
+    },
+    assignProject: (eventId: string, body: AssignAgentCostEventProjectRequest) =>
+      put<AgentCostEventsPage['items'][number]>(`/agent-cost/events/${eventId}/project`, body),
+  },
   associations: {
     list: (params: { project_id: string; status?: string; cursor?: string; limit?: number }) => {
       const q = new URLSearchParams(
@@ -158,7 +185,9 @@ export const queryKeys = {
   outputBindings: () => ['output', 'repo-bindings'] as const,
   githubConfig: () => ['github-config'] as const,
   githubRepos: () => ['github-config', 'repos'] as const,
+  agentCostProviders: () => ['agent-cost', 'providers'] as const,
+  agentCostEvents: (params?: object) => ['agent-cost', 'events', params] as const,
   associations: (params?: object) => ['associations', params] as const,
 }
 
-export type { OutputLifecycleState, OutputEvent, OutputSummary, ProjectEconomics, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse }
+export type { OutputLifecycleState, OutputEvent, OutputSummary, ProjectEconomics, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostProvider, AgentCostProviderConfig, AgentCostEventsPage, AgentCostSyncResult }

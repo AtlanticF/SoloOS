@@ -12,7 +12,7 @@ import {
 
 describe('Agent Cost Ledger schema', () => {
   it('exports shared provider and source types for all MVP cost sources', () => {
-    expect(AGENT_COST_PROVIDERS).toEqual(['openai', 'anthropic', 'manual'])
+    expect(AGENT_COST_PROVIDERS).toEqual(['openai', 'anthropic', 'cursor', 'manual'])
     expect(AGENT_COST_SOURCES).toEqual(['official_api', 'official_export', 'sdk_estimate', 'manual'])
 
     const provider: AgentCostProvider = 'openai'

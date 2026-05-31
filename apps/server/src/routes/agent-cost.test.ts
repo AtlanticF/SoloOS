@@ -73,7 +73,7 @@ describe('manual agent cost events', () => {
   })
 })
 
-describe('OpenAI cost provider config', () => {
+describe('official cost provider config and sync', () => {
   let app: ReturnType<typeof createApp>
 
   beforeEach(() => {
@@ -218,6 +218,195 @@ describe('OpenAI cost provider config', () => {
       project_id: null,
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('saves, tests, and syncs Anthropic official cost rows idempotently', async () => {
+    const saveRes = await app.request('/api/agent-cost/providers/anthropic', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'Anthropic Admin', api_key: 'sk-ant-admin-secret1234' }),
+    })
+    expect(saveRes.status).toBe(200)
+    expect(await saveRes.json()).toMatchObject({
+      provider: 'anthropic',
+      label: 'Anthropic Admin',
+      api_key_masked: '****1234',
+    })
+
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      data: [
+        {
+          starting_at: '2026-05-01T00:00:00Z',
+          ending_at: '2026-05-02T00:00:00Z',
+          results: [
+            {
+              amount: '123',
+              currency: 'USD',
+              workspace_id: 'wrk_costs',
+              description: 'Claude Sonnet usage',
+            },
+            {
+              amount: '250',
+              currency: 'USD',
+              workspace_id: null,
+              description: 'Code Execution Usage',
+            },
+          ],
+        },
+      ],
+      has_more: false,
+      next_page: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const testRes = await app.request('/api/agent-cost/providers/anthropic/test', { method: 'POST' })
+    expect(testRes.status).toBe(200)
+    expect(await testRes.json()).toMatchObject({ ok: true, provider: 'anthropic', status: 'ok' })
+    const [testUrl, testInit] = fetchMock.mock.calls[0]
+    expect(String(testUrl)).toContain('https://api.anthropic.com/v1/organizations/cost_report')
+    expect((testInit as RequestInit).headers).toMatchObject({
+      'x-api-key': 'sk-ant-admin-secret1234',
+      'anthropic-version': '2023-06-01',
+    })
+
+    const firstSync = await app.request('/api/agent-cost/providers/anthropic/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(firstSync.status).toBe(200)
+    expect(await firstSync.json()).toMatchObject({
+      provider: 'anthropic',
+      imported: 2,
+      skipped: 0,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const secondSync = await app.request('/api/agent-cost/providers/anthropic/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(secondSync.status).toBe(200)
+    expect(await secondSync.json()).toMatchObject({
+      provider: 'anthropic',
+      imported: 0,
+      skipped: 2,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const page = await (await app.request('/api/agent-cost/events')).json()
+    expect(page.items).toHaveLength(2)
+    expect(page.items[0]).toMatchObject({
+      provider: 'anthropic',
+      source: 'official_api',
+      provider_project_id: 'wrk_costs',
+      line_item: 'Claude Sonnet usage',
+      amount: '1.23',
+      currency: 'USD',
+    })
+  })
+
+  it('saves, tests, and syncs Cursor official usage events idempotently', async () => {
+    const saveRes = await app.request('/api/agent-cost/providers/cursor', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'Cursor Team', api_key: 'key_cursor_secret1234' }),
+    })
+    expect(saveRes.status).toBe(200)
+    expect(await saveRes.json()).toMatchObject({
+      provider: 'cursor',
+      label: 'Cursor Team',
+      api_key_masked: '****1234',
+    })
+
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      usageEvents: [
+        {
+          timestamp: '1772380800000',
+          model: 'claude-4-opus',
+          kind: 'Usage-based',
+          maxMode: true,
+          requestsCosts: 5,
+          isTokenBasedCall: true,
+          tokenUsage: {
+            inputTokens: 126,
+            outputTokens: 450,
+            cacheWriteTokens: 6112,
+            cacheReadTokens: 11964,
+            totalCents: 20.18232,
+          },
+          userEmail: 'dev@example.com',
+        },
+        {
+          timestamp: '1772384400000',
+          model: 'gpt-5',
+          kind: 'Included in Business',
+          maxMode: false,
+          requestsCosts: 1.4,
+          isTokenBasedCall: false,
+          userEmail: 'admin@example.com',
+        },
+      ],
+      totalUsageEventsCount: 2,
+      pagination: { numPages: 1, currentPage: 1, pageSize: 100, hasNextPage: false, hasPreviousPage: false },
+      period: { startDate: 1772380800000, endDate: 1772467200000 },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const testRes = await app.request('/api/agent-cost/providers/cursor/test', { method: 'POST' })
+    expect(testRes.status).toBe(200)
+    expect(await testRes.json()).toMatchObject({ ok: true, provider: 'cursor', status: 'ok' })
+    const [, testInit] = fetchMock.mock.calls[0]
+    expect((testInit as RequestInit).headers).toMatchObject({
+      Authorization: `Basic ${Buffer.from('key_cursor_secret1234:').toString('base64')}`,
+      'Content-Type': 'application/json',
+    })
+
+    const firstSync = await app.request('/api/agent-cost/providers/cursor/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(firstSync.status).toBe(200)
+    expect(await firstSync.json()).toMatchObject({
+      provider: 'cursor',
+      imported: 2,
+      skipped: 0,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const secondSync = await app.request('/api/agent-cost/providers/cursor/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_time: 1772380800, end_time: 1772467200 }),
+    })
+    expect(secondSync.status).toBe(200)
+    expect(await secondSync.json()).toMatchObject({
+      provider: 'cursor',
+      imported: 0,
+      skipped: 2,
+      unassigned: 2,
+      status: 'success',
+    })
+
+    const page = await (await app.request('/api/agent-cost/events')).json()
+    expect(page.items).toHaveLength(2)
+    const usageBasedEvent = page.items.find((item: { provider_project_id: string }) => (
+      item.provider_project_id === 'dev@example.com'
+    ))
+    expect(usageBasedEvent).toMatchObject({
+      provider: 'cursor',
+      source: 'official_api',
+      provider_project_id: 'dev@example.com',
+      line_item: 'Usage-based',
+      model: 'claude-4-opus',
+      amount: '0.20',
+      currency: 'USD',
+    })
   })
 })
 
