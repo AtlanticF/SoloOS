@@ -17,6 +17,7 @@ import { associationsRouter } from './routes/associations'
 import { agentCostRouter } from './routes/agent-cost'
 import { audienceRouter } from './routes/audience'
 import { balanceRouter } from './routes/balance'
+import { resolveAllowedOrigins } from './config/cors'
 import { startOutputAutoSyncWorker } from './output/auto-sync-worker'
 import { githubWebhook } from './webhooks/github'
 import { stripeWebhook } from './webhooks/stripe'
@@ -32,7 +33,7 @@ export function createApp(db: DB) {
   app.use(
     '*',
     cors({
-      origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173'],
+      origin: resolveAllowedOrigins(),
     }),
   )
   app.get('/health', (c) => c.json({ ok: true }))

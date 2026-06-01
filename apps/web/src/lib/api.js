@@ -1,4 +1,6 @@
-const BASE = '/api';
+// Defaults to the same-origin Vite proxy (Mode 2, fully local). A hosted client
+// (Mode 1) sets VITE_API_BASE to the local server URL, e.g. http://localhost:3000/api.
+const BASE = import.meta.env.VITE_API_BASE ?? '/api';
 async function get(path) {
     const res = await fetch(`${BASE}${path}`);
     if (!res.ok)

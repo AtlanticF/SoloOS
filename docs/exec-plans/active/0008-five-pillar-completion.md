@@ -103,7 +103,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
     run impact analysis on `Cockpit.tsx` scoring before editing.
   - Done = scoring tests green; radar renders all five from the endpoint.
 
-- [ ] **Issue 5 — Connection seam (Mode-1-ready, not deployed)**
+- [x] **Issue 5 — Connection seam (Mode-1-ready, not deployed)**
   - Outcome: server CORS origins come from config (default = today's localhost
     origins; extra via `SOLOOS_ALLOWED_ORIGINS`); client API base is
     `import.meta.env.VITE_API_BASE ?? '/api'`. Local `pnpm dev` behaves
@@ -123,7 +123,8 @@ renders on the radar end-to-end.* Issue 1 proves it.
 
 ## Now
 
-- Implement Issue 5 (connection seam: env CORS + `VITE_API_BASE`) test-first.
+- All five issues green (server suite 112 tests + full build). Ready to advance
+  implement → evaluate (tier L2).
 
 ## Decisions log
 
@@ -179,3 +180,9 @@ renders on the radar end-to-end.* Issue 1 proves it.
   positive revenue signal only; spend stays in the Review summary. Noted smell:
   the Monday week-start math now exists in `reviews.ts`, `reviews.test.ts`, and
   `balance-service.ts` — extract a shared `week` util in a later gardener pass.
+- 2026-06-01: Issue 5 green. Connection seam: CORS origins now resolve via
+  `config/cors.resolveAllowedOrigins` (defaults preserved; extra origins via
+  `SOLOOS_ALLOWED_ORIGINS`), and the client API base is
+  `import.meta.env.VITE_API_BASE ?? '/api'` (added `vite-env.d.ts` for typing).
+  Local `pnpm dev` behavior is unchanged. README documents the Mode 1 vars.
+  Verified: server suite 112 tests green (4 new) + full build green.

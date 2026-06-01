@@ -84,6 +84,15 @@ pnpm test     # server Vitest suite
 - **Database path:** `~/.soloos/soloos.db` (created automatically; not in the repo).
 - **Stability:** SoloOS is under active development; HTTP shapes and behavior may change. Treat this README as a living overview, not a frozen spec.
 
+### Remote client (Mode 1, experimental)
+
+By default the web client and the API both run on your machine (fully local). To serve the client from elsewhere (e.g. a hosted build) while your data stays in your **local** SQLite, set two env vars:
+
+- **Client** — point it at your local server: `VITE_API_BASE=http://localhost:3000/api`.
+- **Server** — allow the client origin (comma-separated): `SOLOOS_ALLOWED_ORIGINS=https://your-client.example`.
+
+Both default to the fully-local setup when unset, so plain `pnpm dev` is unchanged.
+
 ---
 
 ## License
