@@ -36,6 +36,30 @@ program
     }
   })
 
+program
+  .command('energy <rating>')
+  .description('Log an energy reading (1-5) — the operator state pillar')
+  .action(async (rating: string) => {
+    const value = Number(rating)
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      console.error('Error: energy rating must be an integer from 1 to 5')
+      process.exit(1)
+    }
+
+    try {
+      const res = await fetch('http://localhost:3000/api/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: `energy ${value}`, source: 'cli', pillar: 'ENERGY', impact_score: value }),
+      })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
+      console.log(`✓ Energy logged — ${value}/5`)
+    } catch (err) {
+      console.error('Error: SoloOS server not running. Start it with: pnpm dev')
+      process.exit(1)
+    }
+  })
+
 program.parse()
 
 async function readStdin(): Promise<string> {
