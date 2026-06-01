@@ -18,6 +18,9 @@ import { agentCostRouter } from './routes/agent-cost'
 import { audienceRouter } from './routes/audience'
 import { balanceRouter } from './routes/balance'
 import { resolveAllowedOrigins } from './config/cors'
+import { resolvePort } from './config/port'
+
+const APP_VERSION = '0.1.0'
 import { startOutputAutoSyncWorker } from './output/auto-sync-worker'
 import { githubWebhook } from './webhooks/github'
 import { stripeWebhook } from './webhooks/stripe'
@@ -30,13 +33,24 @@ export function createApp(db: DB) {
   })
   const openapiPath = fileURLToPath(new URL('../openapi.yaml', import.meta.url))
   const openapiYaml = readFileSync(openapiPath, 'utf8')
+  // Private Network Access: a public (HTTPS) page fetching this local server
+  // sends a preflight with Access-Control-Request-Private-Network; the browser
+  // requires us to opt in explicitly. Runs before cors so it sets the header on
+  // the preflight response.
+  app.use('*', async (c, next) => {
+    await next()
+    if (c.req.header('Access-Control-Request-Private-Network') === 'true') {
+      c.res.headers.set('Access-Control-Allow-Private-Network', 'true')
+    }
+  })
   app.use(
     '*',
     cors({
       origin: resolveAllowedOrigins(),
     }),
   )
-  app.get('/health', (c) => c.json({ ok: true }))
+  // Identity signature so a remote client can confirm this is really SoloOS.
+  app.get('/health', (c) => c.json({ ok: true, app: 'soloos', version: APP_VERSION }))
   app.get('/openapi.yaml', (c) => c.text(openapiYaml, 200, { 'Content-Type': 'application/yaml; charset=utf-8' }))
   app.get('/docs', (c) => c.html(`<!doctype html>
 <html lang="en">
@@ -81,7 +95,8 @@ if (process.env.NODE_ENV !== 'test') {
   const db = getDb()
   const app = createApp(db)
   startOutputAutoSyncWorker(db)
-  serve({ fetch: app.fetch, port: 3000 }, () => {
-    console.log('SoloOS server running at http://localhost:3000')
+  const port = resolvePort()
+  serve({ fetch: app.fetch, port }, () => {
+    console.log(`SoloOS server running at http://localhost:${port}`)
   })
 }
