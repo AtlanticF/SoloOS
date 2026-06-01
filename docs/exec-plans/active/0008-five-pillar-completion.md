@@ -77,7 +77,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
   - Done = API tests green; Review UI collects the rating; gate still blocks the
     Cockpit. (Run impact analysis on the review-complete path first.)
 
-- [ ] **Issue 3 — Audience GitHub-social auto-feed**
+- [x] **Issue 3 — Audience GitHub-social auto-feed**
   - Outcome: a user-triggered sync snapshots stars/watchers/forks (and account
     followers) for linked repos and emits `AUDIENCE` events for positive deltas
     since the last snapshot; no change → no event; re-running is idempotent.
@@ -123,7 +123,9 @@ renders on the radar end-to-end.* Issue 1 proves it.
 
 ## Now
 
-- Implement Issue 3 (Audience GitHub-social auto-feed) test-first.
+- Implement Issue 4 (radar flow-vs-level scoring, server-side) test-first.
+  ⚠️ This is the one issue that changes existing Input/Output/Financial radar
+  behavior — run impact analysis on `Cockpit.tsx` scoring first.
 
 ## Decisions log
 
@@ -154,3 +156,16 @@ renders on the radar end-to-end.* Issue 1 proves it.
   green. Note: the web package commits `tsc`-compiled `.js` next to each `.tsx`;
   `pnpm build` regenerates them, so they are staged alongside source (Vite
   resolves `.tsx` first at runtime, but the repo keeps `.js` in sync).
+- 2026-06-01: Issue 3 green. Added the AUDIENCE auto-feed: `github_social_snapshots`
+  table, `audience-service.recordSocialSnapshot` (per-repo delta of
+  stars+watchers+forks → one AUDIENCE event with impact = positive delta;
+  first snapshot = baseline/no event; unchanged/shrinking = no event; idempotent),
+  a thin `fetchUserRepoSocials` GitHub boundary, and `POST /api/audience/sync`.
+  Verified: server suite 103 tests green (5 service + 1 route) + full build green.
+  GOTCHA: `drizzle-kit generate` produced a bogus migration recreating every
+  table — this repo only commits meta snapshots through 0002, so the diff
+  baseline is stale. The repo's real convention is hand-written migrations +
+  journal entries with NO snapshots (see 0003–0010); followed it for
+  `0011_github_social_snapshots.sql`. Scope trims (noted, not built): account
+  followers as an Audience signal, and a Settings "Sync audience" button +
+  auto-sync hook — deferred; the endpoint runs the slice end-to-end for now.

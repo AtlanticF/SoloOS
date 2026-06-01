@@ -247,3 +247,14 @@ export const agent_cost_local_activity_events = sqliteTable('agent_cost_local_ac
   idx_provider_occurred: index('idx_agent_cost_local_activity_events_provider_occurred').on(t.provider, t.occurred_at),
   idx_project_path_occurred: index('idx_agent_cost_local_activity_events_project_path_occurred').on(t.project_path, t.occurred_at),
 }))
+
+export const github_social_snapshots = sqliteTable('github_social_snapshots', {
+  id: text('id').primaryKey(),
+  repo_key: text('repo_key').notNull(),
+  stars: integer('stars').notNull(),
+  watchers: integer('watchers').notNull(),
+  forks: integer('forks').notNull(),
+  captured_at: integer('captured_at').notNull(),
+}, (t) => ({
+  idx_repo_key_captured: index('idx_github_social_snapshots_repo_key_captured').on(t.repo_key, t.captured_at),
+}))

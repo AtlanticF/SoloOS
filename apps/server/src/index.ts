@@ -15,6 +15,7 @@ import { outputRouter } from './routes/output'
 import { githubConfigRouter } from './routes/github-config'
 import { associationsRouter } from './routes/associations'
 import { agentCostRouter } from './routes/agent-cost'
+import { audienceRouter } from './routes/audience'
 import { startOutputAutoSyncWorker } from './output/auto-sync-worker'
 import { githubWebhook } from './webhooks/github'
 import { stripeWebhook } from './webhooks/stripe'
@@ -67,6 +68,7 @@ export function createApp(db: DB) {
   app.route('/api/github-config', githubConfigRouter(db))
   app.route('/api/associations', associationsRouter(db))
   app.route('/api/agent-cost', agentCostRouter(db))
+  app.route('/api/audience', audienceRouter(db))
   app.route('/webhooks/github', githubWebhook(db))
   app.route('/webhooks/stripe', stripeWebhook(db))
   return app
