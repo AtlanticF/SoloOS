@@ -11,12 +11,13 @@ const AGENT_COST_DECISIONS: AgentCostDecision[] = ['continue', 'pause', 'kill', 
 export function ReviewGate({ review }: { review: Review }) {
   const { t } = useTranslation()
   const [reflection, setReflection] = useState('')
+  const [energyRating, setEnergyRating] = useState<number | undefined>()
   const [agentCostDecision, setAgentCostDecision] = useState<AgentCostDecision | undefined>()
   const qc = useQueryClient()
   const requiresAgentCostDecision = Number(review.agent_cost_summary.total_amount) > 0
 
   const complete = useMutation({
-    mutationFn: () => api.reviews.complete(review.id, reflection, requiresAgentCostDecision ? agentCostDecision : undefined),
+    mutationFn: () => api.reviews.complete(review.id, reflection, energyRating!, requiresAgentCostDecision ? agentCostDecision : undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.reviewCurrent() }),
   })
 
@@ -42,6 +43,28 @@ export function ReviewGate({ review }: { review: Review }) {
         value={reflection}
         onChange={e => setReflection(e.target.value)}
       />
+      <div className="flex w-full flex-col gap-1.5">
+        <span className="text-xs font-semibold uppercase tracking-widest text-left" style={{ color: '#71717a' }}>
+          {t('review.energyLabel')}
+        </span>
+        <div className="grid w-full grid-cols-5 gap-2">
+          {[1, 2, 3, 4, 5].map(value => (
+            <button
+              key={value}
+              type="button"
+              className="h-9 rounded-md border text-xs font-semibold transition-colors"
+              style={{
+                background: energyRating === value ? 'rgba(139,92,246,0.12)' : '#18181b',
+                borderColor: energyRating === value ? '#8b5cf6' : '#27272a',
+                color: energyRating === value ? '#8b5cf6' : '#a1a1aa',
+              }}
+              onClick={() => setEnergyRating(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
       {requiresAgentCostDecision && (
         <div className="grid w-full grid-cols-2 gap-2">
           {AGENT_COST_DECISIONS.map(decision => (
@@ -62,7 +85,7 @@ export function ReviewGate({ review }: { review: Review }) {
         </div>
       )}
       <Button
-        disabled={reflection.trim().length < 20 || (requiresAgentCostDecision && !agentCostDecision) || complete.isPending}
+        disabled={reflection.trim().length < 20 || !energyRating || (requiresAgentCostDecision && !agentCostDecision) || complete.isPending}
         onClick={() => complete.mutate()}
         className="w-full"
       >

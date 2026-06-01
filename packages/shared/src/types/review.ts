@@ -26,5 +26,6 @@ export interface Review {
 
 export interface CompleteReviewRequest {
   reflection: string
+  energy_rating: number
   agent_cost_decision?: AgentCostDecision
 }

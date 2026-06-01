@@ -76,12 +76,45 @@ export function reviewsRouter(db: DB) {
       return c.json({ error: 'review not found' }, 404)
     }
 
+    // The Review Gate is the mandatory ritual that keeps the Energy pillar honest:
+    // completing a review requires an operator-state rating from 1 to 5.
+    const energyRating = body.energy_rating
+    if (typeof energyRating !== 'number' || !Number.isInteger(energyRating) || energyRating < 1 || energyRating > 5) {
+      return c.json({ error: 'energy rating must be an integer from 1 to 5' }, 400)
+    }
+
     const agentCostSummary = await summarizeAgentCostsForPeriod(db, review.period_start, review.period_end)
     if (Number(agentCostSummary.total_amount) > 0 && !isAgentCostDecision(body.agent_cost_decision)) {
       return c.json({ error: 'agent_cost_decision is required' }, 400)
     }
 
     const now = Math.floor(Date.now() / 1000)
+
+    // Record the rating as an ENERGY event inside the review period so the radar
+    // always has at least one operator-state reading for the week.
+    const occurredAt = Math.min(Math.max(now, review.period_start), review.period_end)
+    const energyEntryId = randomUUID()
+    await db.insert(schema.entries).values({
+      id: energyEntryId,
+      content: `energy ${energyRating}`,
+      source: 'cli',
+      status: 'processed',
+      quick_tags: '[]',
+      created_at: now,
+    })
+    await db.insert(schema.events).values({
+      id: randomUUID(),
+      entry_id: energyEntryId,
+      title: `Energy ${energyRating}/5`,
+      pillar: 'ENERGY',
+      project_id: null,
+      impact_score: energyRating,
+      classifier: 'review',
+      metadata: '{}',
+      occurred_at: occurredAt,
+      created_at: now,
+    })
+
     const updated = await db.update(schema.reviews)
       .set({ reflection: body.reflection, completed_at: now })
       .where(eq(schema.reviews.id, id))

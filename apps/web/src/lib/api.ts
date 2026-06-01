@@ -67,8 +67,8 @@ export const api = {
   },
   reviews: {
     current: () => get<Review>('/reviews/current'),
-    complete: (id: string, reflection: string, agentCostDecision?: AgentCostDecision) =>
-      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection, agent_cost_decision: agentCostDecision }),
+    complete: (id: string, reflection: string, energyRating: number, agentCostDecision?: AgentCostDecision) =>
+      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection, energy_rating: energyRating, agent_cost_decision: agentCostDecision }),
   },
   insights: {
     list: (params?: { status?: string; type?: string }) => {

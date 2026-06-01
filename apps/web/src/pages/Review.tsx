@@ -12,6 +12,7 @@ const AGENT_COST_DECISIONS: AgentCostDecision[] = ['continue', 'pause', 'kill', 
 export function Review() {
   const { t } = useTranslation()
   const [reflection, setReflection] = useState('')
+  const [energyRating, setEnergyRating] = useState<number | undefined>()
   const [agentCostDecision, setAgentCostDecision] = useState<AgentCostDecision | undefined>()
   const qc = useQueryClient()
 
@@ -21,10 +22,11 @@ export function Review() {
   })
 
   const complete = useMutation({
-    mutationFn: () => api.reviews.complete(review!.id, reflection, requiresAgentCostDecision ? agentCostDecision : undefined),
+    mutationFn: () => api.reviews.complete(review!.id, reflection, energyRating!, requiresAgentCostDecision ? agentCostDecision : undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.reviewCurrent() })
       setReflection('')
+      setEnergyRating(undefined)
       setAgentCostDecision(undefined)
     },
   })
@@ -66,6 +68,29 @@ export function Review() {
             value={reflection}
             onChange={e => setReflection(e.target.value)}
           />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#71717a' }}>
+              {t('review.energyLabel')}
+            </span>
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  className="h-9 rounded-md border text-xs font-semibold transition-colors"
+                  style={{
+                    background: energyRating === value ? 'rgba(139,92,246,0.12)' : '#18181b',
+                    borderColor: energyRating === value ? '#8b5cf6' : '#27272a',
+                    color: energyRating === value ? '#8b5cf6' : '#a1a1aa',
+                  }}
+                  onClick={() => setEnergyRating(value)}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: '#3f3f46' }}>{t('review.energyHint')}</p>
+          </div>
           {requiresAgentCostDecision && (
             <div className="grid grid-cols-2 gap-2">
               {AGENT_COST_DECISIONS.map(decision => (
@@ -86,7 +111,7 @@ export function Review() {
             </div>
           )}
           <Button
-            disabled={reflection.trim().length < 20 || (requiresAgentCostDecision && !agentCostDecision) || complete.isPending}
+            disabled={reflection.trim().length < 20 || !energyRating || (requiresAgentCostDecision && !agentCostDecision) || complete.isPending}
             onClick={() => complete.mutate()}
           >
             {complete.isPending ? t('review.saving') : t('review.submit')}

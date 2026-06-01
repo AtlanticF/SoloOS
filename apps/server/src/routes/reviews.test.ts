@@ -33,13 +33,48 @@ describe('GET /api/reviews/current', () => {
     const res2 = await app.request(`/api/reviews/${review.id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reflection: 'Good week, shipped pricing feature' }),
+      body: JSON.stringify({ reflection: 'Good week, shipped pricing feature', energy_rating: 4 }),
     })
     expect(res2.status).toBe(200)
 
     const res3 = await app.request('/api/reviews/current')
     const updated = await res3.json() as { completed_at: number | null }
     expect(updated.completed_at).not.toBeNull()
+  })
+
+  it('rejects completion without an energy rating', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.' }),
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('energy') })
+  })
+
+  it('records the energy rating as an ENERGY event on completion', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.', energy_rating: 4 }),
+    })
+    expect(res.status).toBe(200)
+
+    const events = await (await app.request('/api/events?pillar=ENERGY')).json()
+    expect(events).toHaveLength(1)
+    expect(events[0].impact_score).toBe(4)
+  })
+
+  it('rejects an energy rating outside 1 to 5', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.', energy_rating: 9 }),
+    })
+    expect(res.status).toBe(400)
   })
 
   it('requires an agent cost decision when current review has non-zero agent cost', async () => {
@@ -62,7 +97,7 @@ describe('GET /api/reviews/current', () => {
     const missingDecision = await app.request(`/api/reviews/${review.id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reflection: 'Good week, but agent spend needs an explicit product decision.' }),
+      body: JSON.stringify({ reflection: 'Good week, but agent spend needs an explicit product decision.', energy_rating: 4 }),
     })
     expect(missingDecision.status).toBe(400)
     expect(await missingDecision.json()).toMatchObject({ error: 'agent_cost_decision is required' })
@@ -72,6 +107,7 @@ describe('GET /api/reviews/current', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reflection: 'Good week, but agent spend needs an explicit product decision.',
+        energy_rating: 4,
         agent_cost_decision: 'pause',
       }),
     })

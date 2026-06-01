@@ -66,7 +66,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
     entries/events path. (Allow an `impact_score` override on the ENERGY entry.)
   - Done = test green; a recorded reading shows on the radar (manual check).
 
-- [ ] **Issue 2 — Energy required at the Review Gate**
+- [x] **Issue 2 — Energy required at the Review Gate**
   - Outcome: completing the weekly review requires an Energy rating for the
     period (slider in the gate + API validation); reflection + agent_cost_decision
     requirements unchanged.
@@ -123,7 +123,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
 
 ## Now
 
-- Implement Issue 2 (Energy required at the Review Gate) test-first.
+- Implement Issue 3 (Audience GitHub-social auto-feed) test-first.
 
 ## Decisions log
 
@@ -143,3 +143,14 @@ renders on the radar end-to-end.* Issue 1 proves it.
   event `impact_score` (was hardcoded 1); added the `solo energy <1–5>` CLI
   command. Verified: full server suite 94 tests green (4 new energy route tests).
   ENERGY now lights up on the existing client radar.
+- 2026-06-01: Issue 2 green. Completing a weekly review now requires an
+  `energy_rating` (1–5): added to `CompleteReviewRequest`, validated in
+  `routes/reviews.ts`, and recorded as an ENERGY event inside the review period
+  (guarantees the axis is never empty). Added the 1–5 selector (Violet accent) to
+  both `pages/Review.tsx` and the Cockpit-blocking `components/cockpit/ReviewGate.tsx`
+  + `api.reviews.complete` signature + en/zh i18n. Impact analysis initially
+  missed `ReviewGate.tsx` as a second `reviews.complete` caller — the workspace
+  build caught it. Verified: server suite 97 tests green (3 new) + full build
+  green. Note: the web package commits `tsc`-compiled `.js` next to each `.tsx`;
+  `pnpm build` regenerates them, so they are staged alongside source (Vite
+  resolves `.tsx` first at runtime, but the repo keeps `.js` in sync).

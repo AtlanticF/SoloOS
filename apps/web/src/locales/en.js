@@ -71,6 +71,8 @@ export default {
         saving: 'Saving…',
         minChars: 'At least 20 characters. Finishing this unlocks the Cockpit for the week.',
         loading: 'Loading…',
+        energyLabel: 'Energy this week',
+        energyHint: 'Rate your operator state — 1 (depleted) to 5 (charged).',
         agentCostSummary: 'Agent cost',
         agentCostSummaryDesc: 'Total agent cost for this review period, split by source.',
         agentCostEmpty: 'No agent cost has been recorded for this review period.',

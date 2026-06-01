@@ -71,6 +71,8 @@ export default {
     saving: '保存中…',
     minChars: '至少需要 20 个字符。完成后将解锁本周驾驶舱。',
     loading: '加载中…',
+    energyLabel: '本周状态',
+    energyHint: '为你的状态打分 —— 1（耗尽）到 5（充沛）。',
     agentCostSummary: 'Agent 成本',
     agentCostSummaryDesc: '当前复盘周期内的 Agent 总成本，并按来源拆分。',
     agentCostEmpty: '当前复盘周期暂无 Agent 成本记录。',
