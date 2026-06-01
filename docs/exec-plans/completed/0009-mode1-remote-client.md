@@ -1,7 +1,7 @@
 ---
 plan: mode1-remote-client
 seq: 0009
-stage: implement
+stage: done
 owner: main
 mode: full
 eval: L2
@@ -93,11 +93,20 @@ smoke.
 
 - Tier: **L2**. Crosses a browser trust boundary (cross-origin localhost access,
   PNA preflight, CORS) and adds a new connection surface.
+- **Verdict (2026-06-01): PASS — 0 failures.** Independent L2 evaluator produced
+  its own evidence: server suite 117 + web suite 7 green; full build green; baked
+  base confirmed; a live server smoke (with a disallowed-origin negative control)
+  showed the signature + ACAO + PNA-allow only for the configured origin.
+  Criterion 5 (live Chromium auto-connect) is **USER-VERIFIED** — browser-only,
+  deferred by design. Non-blocking follow-ups: tighten the PNA header to fire only
+  with an allowed CORS origin; move `healthUrl` into the tested `connection.ts`;
+  repo-wide `.js` mirror cleanup.
 
 ## Now
 
-- All four issues green. Ready to advance implement → evaluate (L2). Pending
-  manual browser smoke (Chromium) of the hosted-style auto-connect.
+- **Complete.** L2 PASS (0 fails) + the user's Chromium auto-connect smoke
+  confirmed (criterion 5). Checkpoint: `.trace/checkpoints/mode1-remote-client-001.md`.
+  Non-blocking follow-ups live in the checkpoint's "Next".
 
 ## Decisions log
 
@@ -130,3 +139,12 @@ smoke.
   hosted-style test (vite preview on :4173). Verified:
   `VITE_API_BASE=http://localhost:5010/api pnpm --filter web build` bakes
   `localhost:5010/api` into the bundle.
+- 2026-06-01: Stage implement→evaluate. All 4 issues green; spawning the L2
+  evaluator (anti-self-praise). Live browser auto-connect is a user-side check
+  (no browser available to the evaluator).
+- 2026-06-01: L2 verdict PASS (0 fails); criterion 5 USER-VERIFIED (browser).
+  Checkpoint `mode1-remote-client-001` written. Holding at evaluate/checkpoint
+  pending the user's Chromium auto-connect smoke before marking done.
+- 2026-06-01: User confirmed the Chromium auto-connect smoke — criterion 5 PASS,
+  all 7 criteria pass. Evaluate→checkpoint→done; plan moved to
+  `docs/exec-plans/completed/`.
