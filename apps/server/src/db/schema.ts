@@ -212,3 +212,38 @@ export const agent_cost_sync_state = sqliteTable('agent_cost_sync_state', {
   created_at: integer('created_at').notNull(),
   updated_at: integer('updated_at').notNull(),
 })
+
+export const agent_cost_personal_subscriptions = sqliteTable('agent_cost_personal_subscriptions', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  account_type: text('account_type').notNull(),
+  billing_status: text('billing_status').notNull(),
+  monthly_amount: text('monthly_amount').notNull(),
+  currency: text('currency').notNull(),
+  effective_start: integer('effective_start').notNull(),
+  effective_end: integer('effective_end'),
+  source: text('source').notNull().default('user_configured'),
+  confidence: text('confidence').notNull().default('user_confirmed'),
+  enabled: integer('enabled').notNull().default(1),
+  created_at: integer('created_at').notNull(),
+  updated_at: integer('updated_at').notNull(),
+}, (t) => ({
+  idx_provider_enabled: index('idx_agent_cost_personal_subscriptions_provider_enabled').on(t.provider, t.enabled),
+}))
+
+export const agent_cost_local_activity_events = sqliteTable('agent_cost_local_activity_events', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  occurred_at: integer('occurred_at').notNull(),
+  project_path: text('project_path').notNull(),
+  event_count: integer('event_count').notNull(),
+  input_tokens: integer('input_tokens'),
+  output_tokens: integer('output_tokens'),
+  raw_metadata: text('raw_metadata').notNull().default('{}'),
+  idempotency_key: text('idempotency_key').notNull(),
+  created_at: integer('created_at').notNull(),
+}, (t) => ({
+  uniq_idempotency_key: uniqueIndex('agent_cost_local_activity_events_idempotency_key_uniq').on(t.idempotency_key),
+  idx_provider_occurred: index('idx_agent_cost_local_activity_events_provider_occurred').on(t.provider, t.occurred_at),
+  idx_project_path_occurred: index('idx_agent_cost_local_activity_events_project_path_occurred').on(t.project_path, t.occurred_at),
+}))

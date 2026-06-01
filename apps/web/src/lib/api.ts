@@ -3,9 +3,10 @@ import type {
   OutputEvent, OutputSummary, OutputEventsPage, RepoBinding, RepoSyncState,
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
   Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
-  AgentCostProvider, AgentCostProviderConfig, UpsertAgentCostProviderConfigRequest,
+  AgentCostProvider, OfficialAgentCostProvider, AgentCostProviderConfig, UpsertAgentCostProviderConfigRequest,
   AgentCostProviderTestResult, OfficialAgentCostSyncRequest, AgentCostSyncResult,
-  AgentCostEventsPage, AssignAgentCostEventProjectRequest,
+  AgentCostEventsPage, AssignAgentCostEventProjectRequest, AgentCostPersonalSubscription,
+  UpsertAgentCostPersonalSubscriptionRequest, LocalAgentCostConnector, PersonalSubscriptionAllocationResult,
 } from '@soloos/shared'
 
 const BASE = '/api'
@@ -121,13 +122,25 @@ export const api = {
   },
   agentCost: {
     providers: () => get<AgentCostProviderConfig[]>('/agent-cost/providers'),
-    saveProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: UpsertAgentCostProviderConfigRequest) =>
+    personalSubscriptions: () => get<AgentCostPersonalSubscription[]>('/agent-cost/personal-subscriptions'),
+    savePersonalSubscription: (body: UpsertAgentCostPersonalSubscriptionRequest) =>
+      post<AgentCostPersonalSubscription>('/agent-cost/personal-subscriptions', body),
+    updatePersonalSubscription: (id: string, body: UpsertAgentCostPersonalSubscriptionRequest) =>
+      put<AgentCostPersonalSubscription>(`/agent-cost/personal-subscriptions/${id}`, body),
+    disablePersonalSubscription: (id: string) =>
+      post<AgentCostPersonalSubscription>(`/agent-cost/personal-subscriptions/${id}/disable`, {}),
+    deletePersonalSubscription: (id: string) =>
+      del<{ ok: boolean }>(`/agent-cost/personal-subscriptions/${id}`),
+    personalConnectors: () => get<LocalAgentCostConnector[]>('/agent-cost/personal-connectors'),
+    allocatePersonalActivity: (dayStart: number) =>
+      post<PersonalSubscriptionAllocationResult>('/agent-cost/personal-activity/allocate', { day_start: dayStart }),
+    saveProvider: (provider: OfficialAgentCostProvider, body: UpsertAgentCostProviderConfigRequest) =>
       put<AgentCostProviderConfig>(`/agent-cost/providers/${provider}`, body),
-    deleteProvider: (provider: Exclude<AgentCostProvider, 'manual'>) =>
+    deleteProvider: (provider: OfficialAgentCostProvider) =>
       del<{ ok: boolean }>(`/agent-cost/providers/${provider}`),
-    testProvider: (provider: Exclude<AgentCostProvider, 'manual'>) =>
+    testProvider: (provider: OfficialAgentCostProvider) =>
       post<AgentCostProviderTestResult>(`/agent-cost/providers/${provider}/test`, {}),
-    syncProvider: (provider: Exclude<AgentCostProvider, 'manual'>, body: OfficialAgentCostSyncRequest) =>
+    syncProvider: (provider: OfficialAgentCostProvider, body: OfficialAgentCostSyncRequest) =>
       post<AgentCostSyncResult>(`/agent-cost/providers/${provider}/sync`, body),
     events: (params?: { assignment?: 'unassigned'; limit?: number }) => {
       const q = new URLSearchParams(
@@ -186,6 +199,8 @@ export const queryKeys = {
   githubConfig: () => ['github-config'] as const,
   githubRepos: () => ['github-config', 'repos'] as const,
   agentCostProviders: () => ['agent-cost', 'providers'] as const,
+  agentCostPersonalSubscriptions: () => ['agent-cost', 'personal-subscriptions'] as const,
+  agentCostPersonalConnectors: () => ['agent-cost', 'personal-connectors'] as const,
   agentCostEvents: (params?: object) => ['agent-cost', 'events', params] as const,
   associations: (params?: object) => ['associations', params] as const,
 }

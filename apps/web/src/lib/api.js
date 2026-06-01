@@ -92,6 +92,13 @@ export const api = {
     },
     agentCost: {
         providers: () => get('/agent-cost/providers'),
+        personalSubscriptions: () => get('/agent-cost/personal-subscriptions'),
+        savePersonalSubscription: (body) => post('/agent-cost/personal-subscriptions', body),
+        updatePersonalSubscription: (id, body) => put(`/agent-cost/personal-subscriptions/${id}`, body),
+        disablePersonalSubscription: (id) => post(`/agent-cost/personal-subscriptions/${id}/disable`, {}),
+        deletePersonalSubscription: (id) => del(`/agent-cost/personal-subscriptions/${id}`),
+        personalConnectors: () => get('/agent-cost/personal-connectors'),
+        allocatePersonalActivity: (dayStart) => post('/agent-cost/personal-activity/allocate', { day_start: dayStart }),
         saveProvider: (provider, body) => put(`/agent-cost/providers/${provider}`, body),
         deleteProvider: (provider) => del(`/agent-cost/providers/${provider}`),
         testProvider: (provider) => post(`/agent-cost/providers/${provider}/test`, {}),
@@ -131,6 +138,8 @@ export const queryKeys = {
     githubConfig: () => ['github-config'],
     githubRepos: () => ['github-config', 'repos'],
     agentCostProviders: () => ['agent-cost', 'providers'],
+    agentCostPersonalSubscriptions: () => ['agent-cost', 'personal-subscriptions'],
+    agentCostPersonalConnectors: () => ['agent-cost', 'personal-connectors'],
     agentCostEvents: (params) => ['agent-cost', 'events', params],
     associations: (params) => ['associations', params],
 };

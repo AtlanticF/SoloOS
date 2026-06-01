@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { AgentCostSummaryPanel } from '@/components/review/AgentCostSummaryPanel'
 import { api, queryKeys } from '@/lib/api'
 import type { AgentCostDecision, Review } from '@soloos/shared'
 
@@ -33,6 +34,7 @@ export function ReviewGate({ review }: { review: Review }) {
           {t('reviewGate.subtitle')}
         </p>
       </div>
+      <AgentCostSummaryPanel summary={review.agent_cost_summary} />
       <textarea
         className="w-full rounded-lg p-3 text-sm resize-none"
         style={{ background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', height: 120 }}

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { api, queryKeys, type AgentTestResult } from '@/lib/api'
-import type { AgentProvider, AgentConfigInput, AgentCostProvider, AgentCostSyncResult } from '@soloos/shared'
+import type { AgentProvider, AgentConfigInput, OfficialAgentCostProvider, AgentCostPersonalProvider, AgentCostSyncResult } from '@soloos/shared'
 import { PROVIDER_DEFAULTS } from '@soloos/shared'
 
 const LANGUAGES = [
@@ -20,8 +20,9 @@ const LANGUAGES = [
 ]
 
 const PROVIDERS: AgentProvider[] = ['openai', 'anthropic', 'google', 'groq', 'ollama', 'custom']
-type OfficialCostProvider = Exclude<AgentCostProvider, 'manual'>
+type OfficialCostProvider = OfficialAgentCostProvider
 const COST_PROVIDERS: OfficialCostProvider[] = ['openai', 'anthropic', 'cursor']
+const PERSONAL_COST_PROVIDERS: AgentCostPersonalProvider[] = ['anthropic', 'cursor', 'codex']
 
 const HEALTH_KEY = 'soloos-agent-health'
 
@@ -52,6 +53,14 @@ export function Settings() {
     queryKey: queryKeys.agentCostProviders(),
     queryFn: api.agentCost.providers,
   })
+  const { data: personalSubscriptions = [] } = useQuery({
+    queryKey: queryKeys.agentCostPersonalSubscriptions(),
+    queryFn: api.agentCost.personalSubscriptions,
+  })
+  const { data: personalConnectors = [] } = useQuery({
+    queryKey: queryKeys.agentCostPersonalConnectors(),
+    queryFn: api.agentCost.personalConnectors,
+  })
   const { data: projects = [] } = useQuery({
     queryKey: queryKeys.projects(),
     queryFn: api.projects.list,
@@ -74,7 +83,13 @@ export function Settings() {
     anthropic: { label: '', apiKey: '' },
     cursor: { label: '', apiKey: '' },
   })
+  const [personalCostForms, setPersonalCostForms] = useState<Record<AgentCostPersonalProvider, { accountType: string; monthlyAmount: string; billingStatus: 'paid' | 'free' | 'unpaid' }>>({
+    anthropic: { accountType: 'Claude Pro', monthlyAmount: '20.00', billingStatus: 'paid' },
+    cursor: { accountType: 'Cursor Pro', monthlyAmount: '20.00', billingStatus: 'paid' },
+    codex: { accountType: 'ChatGPT Plus', monthlyAmount: '20.00', billingStatus: 'paid' },
+  })
   const [costStatus, setCostStatus] = useState<Record<string, string>>({})
+  const [personalCostStatus, setPersonalCostStatus] = useState<string | null>(null)
   const [selectedCostProjects, setSelectedCostProjects] = useState<Record<string, string>>({})
 
   const [testPhase, setTestPhase] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle')
@@ -241,6 +256,53 @@ export function Settings() {
     },
   })
 
+  const { mutate: savePersonalSubscription, isPending: savingPersonalSubscription } = useMutation({
+    mutationFn: (p: AgentCostPersonalProvider) => {
+      const form = personalCostForms[p]
+      const existing = personalSubscriptions.find((item) => item.provider === p)
+      const body = {
+        provider: p,
+        account_type: form.accountType.trim() || p,
+        billing_status: form.billingStatus,
+        monthly_amount: form.billingStatus === 'free' ? '0.00' : form.monthlyAmount.trim(),
+        currency: 'USD',
+        effective_start: Math.floor(Date.now() / 1000),
+      }
+      return existing ? api.agentCost.updatePersonalSubscription(existing.id, body) : api.agentCost.savePersonalSubscription(body)
+    },
+    onSuccess: (subscription) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostPersonalSubscriptions() })
+      setPersonalCostStatus(t('settings.personalCostSaved', { provider: subscription.provider }))
+    },
+    onError: (err) => setPersonalCostStatus(String(err)),
+  })
+
+  const { mutate: disablePersonalSubscription, isPending: disablingPersonalSubscription } = useMutation({
+    mutationFn: (id: string) => api.agentCost.disablePersonalSubscription(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostPersonalSubscriptions() })
+      setPersonalCostStatus(t('settings.personalCostDisabled'))
+    },
+  })
+
+  const { mutate: allocatePersonalActivity, isPending: allocatingPersonalActivity } = useMutation({
+    mutationFn: () => {
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      return api.agentCost.allocatePersonalActivity(Math.floor(now.getTime() / 1000))
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agentCostEvents({ assignment: 'unassigned', limit: 10 }) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectEconomics() })
+      setPersonalCostStatus(t('settings.personalCostSyncResult', {
+        imported: result.imported,
+        skipped: result.skipped,
+        unallocated: result.unallocated,
+      }))
+    },
+    onError: (err) => setPersonalCostStatus(String(err)),
+  })
+
   function handleProviderChange(p: AgentProvider) {
     setProvider(p)
     const defaults = PROVIDER_DEFAULTS[p]
@@ -267,6 +329,13 @@ export function Settings() {
 
   function updateCostForm(p: OfficialCostProvider, patch: Partial<{ label: string; apiKey: string }>) {
     setCostForms((current) => ({ ...current, [p]: { ...current[p], ...patch } }))
+  }
+
+  function updatePersonalCostForm(
+    p: AgentCostPersonalProvider,
+    patch: Partial<{ accountType: string; monthlyAmount: string; billingStatus: 'paid' | 'free' | 'unpaid' }>,
+  ) {
+    setPersonalCostForms((current) => ({ ...current, [p]: { ...current[p], ...patch } }))
   }
 
   function saveCostConfig(p: OfficialCostProvider) {
@@ -608,6 +677,105 @@ export function Settings() {
               </div>
             )
           })}
+        </div>
+
+        <div className="rounded-lg border p-3 flex flex-col gap-3" style={{ borderColor: '#27272a', background: '#18181b' }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-medium" style={{ color: '#e4e4e7' }}>{t('settings.personalAgentCost')}</div>
+              <div className="text-[11px]" style={{ color: '#71717a' }}>{t('settings.personalAgentCostDesc')}</div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => allocatePersonalActivity()} disabled={allocatingPersonalActivity} className="gap-1.5">
+              {allocatingPersonalActivity ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {t('settings.sync')}
+            </Button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {PERSONAL_COST_PROVIDERS.map((p) => {
+              const saved = personalSubscriptions.find((item) => item.provider === p)
+              const connector = personalConnectors.find((item) => item.provider === p)
+              const busy = savingPersonalSubscription || disablingPersonalSubscription
+              return (
+                <div key={p} className="rounded-md border p-3 flex flex-col gap-2" style={{ borderColor: '#27272a', background: '#111' }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold capitalize" style={{ color: '#e4e4e7' }}>{p}</div>
+                      <div className="text-[11px] font-mono" style={{ color: connector?.status === 'installed' ? '#4ade80' : '#71717a' }}>
+                        {connector ? `${connector.cli}: ${connector.status}` : t('settings.detecting')}
+                      </div>
+                    </div>
+                    {saved && (
+                      <span className="text-[11px] px-2 py-0.5 rounded" style={{ background: saved.enabled ? '#14532d20' : '#3f3f4620', color: saved.enabled ? '#4ade80' : '#a1a1aa' }}>
+                        {saved.enabled ? saved.billing_status : t('settings.disabled')}
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={personalCostForms[p].accountType}
+                    onChange={e => updatePersonalCostForm(p, { accountType: e.target.value })}
+                    className="rounded-lg px-3 py-2 text-xs"
+                    style={{ background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                  />
+                  <div className="grid grid-cols-[1fr_96px] gap-2">
+                    <select
+                      value={personalCostForms[p].billingStatus}
+                      onChange={e => updatePersonalCostForm(p, { billingStatus: e.target.value as 'paid' | 'free' | 'unpaid' })}
+                      className="rounded-lg px-3 py-2 text-xs"
+                      style={{ background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                    >
+                      <option value="paid">{t('settings.paid')}</option>
+                      <option value="free">{t('settings.free')}</option>
+                      <option value="unpaid">{t('settings.unpaid')}</option>
+                    </select>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={personalCostForms[p].monthlyAmount}
+                      onChange={e => updatePersonalCostForm(p, { monthlyAmount: e.target.value })}
+                      disabled={personalCostForms[p].billingStatus === 'free'}
+                      className="rounded-lg px-3 py-2 text-xs"
+                      style={{ background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => savePersonalSubscription(p)} disabled={busy}>
+                      {savingPersonalSubscription ? <Loader2 size={13} className="animate-spin" /> : t('settings.save')}
+                    </Button>
+                    {saved?.enabled && (
+                      <Button size="sm" variant="outline" onClick={() => disablePersonalSubscription(saved.id)} disabled={busy}>
+                        {t('settings.disable')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="rounded-md px-3 py-2" style={{ background: '#111', border: '1px solid #27272a' }}>
+              <div className="text-[11px]" style={{ color: '#71717a' }}>{t('settings.officialCost')}</div>
+              <div className="text-xs font-mono" style={{ color: '#e4e4e7' }}>{t('settings.availableInReview')}</div>
+            </div>
+            <div className="rounded-md px-3 py-2" style={{ background: '#111', border: '1px solid #27272a' }}>
+              <div className="text-[11px]" style={{ color: '#71717a' }}>{t('settings.personalAllocatedCost')}</div>
+              <div className="text-xs font-mono" style={{ color: '#e4e4e7' }}>{t('settings.availableInReview')}</div>
+            </div>
+            <div className="rounded-md px-3 py-2" style={{ background: '#111', border: '1px solid #27272a' }}>
+              <div className="text-[11px]" style={{ color: '#71717a' }}>{t('settings.personalUnallocatedCost')}</div>
+              <div className="text-xs font-mono" style={{ color: '#e4e4e7' }}>{t('settings.availableInReview')}</div>
+            </div>
+          </div>
+
+          {personalCostStatus && (
+            <div className="text-[11px] rounded px-2 py-1" style={{ background: '#111', color: '#a1a1aa' }}>
+              {personalCostStatus}
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg border" style={{ borderColor: '#27272a' }}>

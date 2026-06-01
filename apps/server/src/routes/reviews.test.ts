@@ -122,6 +122,9 @@ describe('GET /api/reviews/current', () => {
       total_amount: '19.75',
       assigned_amount: '12.50',
       unassigned_amount: '7.25',
+      official_api_amount: '0.00',
+      personal_subscription_allocated_amount: '0.00',
+      personal_subscription_unallocated_amount: '0.00',
     })
     expect(body.agent_cost_summary.project_costs).toEqual([
       { project_id: project.id, amount: '12.50', currency: 'USD' },

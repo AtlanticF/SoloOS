@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { AgentCostSummaryPanel } from '@/components/review/AgentCostSummaryPanel'
 import { api, queryKeys } from '@/lib/api'
 import { formatTs } from '@/lib/utils'
 import type { AgentCostDecision } from '@soloos/shared'
@@ -44,6 +45,8 @@ export function Review() {
           {t('review.period', { start: formatTs(review.period_start), end: formatTs(review.period_end) })}
         </p>
       </div>
+
+      <AgentCostSummaryPanel summary={review.agent_cost_summary} />
 
       {isCompleted ? (
         <div className="rounded-xl p-4" style={{ background: '#111', border: '1px solid #1e1e22' }}>

@@ -4,22 +4,31 @@ import { createTestDb } from './index'
 import * as schema from './schema'
 import {
   AGENT_COST_PROVIDERS,
+  AGENT_COST_PERSONAL_PROVIDERS,
   AGENT_COST_SOURCES,
   type AgentCostEvent,
+  type AgentCostPersonalSubscription,
   type AgentCostProvider,
+  type AgentCostPersonalProvider,
   type AgentCostSource,
+  type OfficialAgentCostProvider,
 } from '@soloos/shared'
 
 describe('Agent Cost Ledger schema', () => {
   it('exports shared provider and source types for all MVP cost sources', () => {
-    expect(AGENT_COST_PROVIDERS).toEqual(['openai', 'anthropic', 'cursor', 'manual'])
+    expect(AGENT_COST_PROVIDERS).toEqual(['openai', 'anthropic', 'cursor', 'codex', 'manual'])
+    expect(AGENT_COST_PERSONAL_PROVIDERS).toEqual(['anthropic', 'cursor', 'codex'])
     expect(AGENT_COST_SOURCES).toEqual(['official_api', 'official_export', 'sdk_estimate', 'manual'])
 
     const provider: AgentCostProvider = 'openai'
+    const officialProvider: OfficialAgentCostProvider = 'cursor'
+    const personalProvider: AgentCostPersonalProvider = 'codex'
     const source: AgentCostSource = 'official_api'
     const manual: AgentCostSource = 'manual'
 
     expect(provider).toBe('openai')
+    expect(officialProvider).toBe('cursor')
+    expect(personalProvider).toBe('codex')
     expect(source).toBe('official_api')
     expect(manual).toBe('manual')
   })
@@ -170,5 +179,65 @@ describe('Agent Cost Ledger schema', () => {
 
     expect(mapping.project_id).toBe('proj_agent_cost')
     expect(syncState.sync_status).toBe('success')
+  })
+
+  it('stores personal subscription metadata per provider', async () => {
+    const db = createTestDb()
+    const now = Math.floor(Date.now() / 1000)
+
+    await db.insert(schema.agent_cost_personal_subscriptions).values([
+      {
+        id: 'personal_claude_pro',
+        provider: 'anthropic',
+        account_type: 'claude-pro',
+        billing_status: 'paid',
+        monthly_amount: '20.00',
+        currency: 'usd',
+        effective_start: now,
+        effective_end: null,
+        source: 'user_configured',
+        confidence: 'user_confirmed',
+        enabled: 1,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'personal_cursor_free',
+        provider: 'cursor',
+        account_type: 'cursor-free',
+        billing_status: 'free',
+        monthly_amount: '0.00',
+        currency: 'usd',
+        effective_start: now,
+        effective_end: null,
+        source: 'user_configured',
+        confidence: 'user_confirmed',
+        enabled: 1,
+        created_at: now,
+        updated_at: now,
+      },
+    ])
+
+    const rows = await db.select().from(schema.agent_cost_personal_subscriptions)
+    expect(rows).toHaveLength(2)
+    expect(rows.map((row) => row.provider).sort()).toEqual(['anthropic', 'cursor'])
+    expect(rows.map((row) => row.billing_status).sort()).toEqual(['free', 'paid'])
+
+    const dto: AgentCostPersonalSubscription = {
+      id: rows[0].id,
+      provider: rows[0].provider as AgentCostPersonalProvider,
+      account_type: rows[0].account_type,
+      billing_status: rows[0].billing_status as AgentCostPersonalSubscription['billing_status'],
+      monthly_amount: rows[0].monthly_amount,
+      currency: rows[0].currency,
+      effective_start: rows[0].effective_start,
+      effective_end: rows[0].effective_end,
+      source: rows[0].source as AgentCostPersonalSubscription['source'],
+      confidence: rows[0].confidence as AgentCostPersonalSubscription['confidence'],
+      enabled: Boolean(rows[0].enabled),
+      created_at: rows[0].created_at,
+      updated_at: rows[0].updated_at,
+    }
+    expect(dto.confidence).toBe('user_confirmed')
   })
 })

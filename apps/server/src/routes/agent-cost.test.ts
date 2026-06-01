@@ -437,6 +437,201 @@ describe('official cost provider config and sync', () => {
   })
 })
 
+describe('personal agent cost subscriptions', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('creates, lists, updates, disables, and deletes a personal subscription', async () => {
+    const createRes = await app.request('/api/agent-cost/personal-subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'codex',
+        account_type: 'ChatGPT Plus',
+        billing_status: 'paid',
+        monthly_amount: '20.00',
+        currency: 'usd',
+        effective_start: 1772380800,
+      }),
+    })
+
+    expect(createRes.status).toBe(201)
+    const created = await createRes.json()
+    expect(created).toMatchObject({
+      provider: 'codex',
+      account_type: 'ChatGPT Plus',
+      billing_status: 'paid',
+      monthly_amount: '20.00',
+      currency: 'USD',
+      effective_start: 1772380800,
+      effective_end: null,
+      source: 'user_configured',
+      confidence: 'user_confirmed',
+      enabled: true,
+    })
+    expect(created.id).toBeDefined()
+
+    const listRes = await app.request('/api/agent-cost/personal-subscriptions')
+    expect(listRes.status).toBe(200)
+    expect(await listRes.json()).toEqual([created])
+
+    const updateRes = await app.request(`/api/agent-cost/personal-subscriptions/${created.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'codex',
+        account_type: 'ChatGPT Pro',
+        billing_status: 'paid',
+        monthly_amount: '200.00',
+        currency: 'usd',
+        effective_start: 1772380800,
+        effective_end: 1774972800,
+      }),
+    })
+    expect(updateRes.status).toBe(200)
+    const updated = await updateRes.json()
+    expect(updated).toMatchObject({
+      id: created.id,
+      account_type: 'ChatGPT Pro',
+      monthly_amount: '200.00',
+      effective_end: 1774972800,
+      enabled: true,
+    })
+
+    const disableRes = await app.request(`/api/agent-cost/personal-subscriptions/${created.id}/disable`, {
+      method: 'POST',
+    })
+    expect(disableRes.status).toBe(200)
+    expect(await disableRes.json()).toMatchObject({ id: created.id, enabled: false })
+
+    const deleteRes = await app.request(`/api/agent-cost/personal-subscriptions/${created.id}`, { method: 'DELETE' })
+    expect(deleteRes.status).toBe(200)
+    expect(await deleteRes.json()).toEqual({ ok: true })
+
+    const emptyRes = await app.request('/api/agent-cost/personal-subscriptions')
+    expect(await emptyRes.json()).toEqual([])
+  })
+
+  it('rejects free personal subscriptions with non-zero monthly cost', async () => {
+    const res = await app.request('/api/agent-cost/personal-subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'cursor',
+        account_type: 'Cursor Free',
+        billing_status: 'free',
+        monthly_amount: '20.00',
+        currency: 'usd',
+        effective_start: 1772380800,
+      }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'free accounts must have zero monthly_amount' })
+  })
+})
+
+describe('local agent cost connector detection', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('reports detection state for supported personal agent CLIs', async () => {
+    const res = await app.request('/api/agent-cost/personal-connectors')
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.map((connector: { provider: string }) => connector.provider)).toEqual(['anthropic', 'cursor', 'codex'])
+    expect(body.every((connector: { status: string }) => ['installed', 'missing', 'unsupported'].includes(connector.status))).toBe(true)
+  })
+})
+
+describe('local agent activity metadata sync', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('imports local activity metadata without transcript content', async () => {
+    const res = await app.request('/api/agent-cost/personal-activity/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'codex',
+        events: [
+          {
+            occurred_at: 1777593600,
+            project_path: '/Users/matt/AI/SoloOS',
+            event_count: 3,
+            input_tokens: 100,
+            output_tokens: 50,
+            raw_metadata: { session_id: 'sess_123' },
+          },
+        ],
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      provider: 'codex',
+      imported: 1,
+      skipped: 0,
+    })
+  })
+
+  it('rejects local activity payloads that contain prompt or response content', async () => {
+    const res = await app.request('/api/agent-cost/personal-activity/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'anthropic',
+        events: [
+          {
+            occurred_at: 1777593600,
+            project_path: '/Users/matt/AI/SoloOS',
+            event_count: 1,
+            raw_metadata: { prompt: 'summarize this private file' },
+          },
+        ],
+      }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'local activity metadata must not include prompt or response content' })
+  })
+
+  it('allocates synced personal activity into daily cost events', async () => {
+    const createRes = await app.request('/api/agent-cost/personal-subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'codex',
+        account_type: 'ChatGPT Plus',
+        billing_status: 'paid',
+        monthly_amount: '31.00',
+        currency: 'usd',
+        effective_start: 1777593600,
+      }),
+    })
+    expect(createRes.status).toBe(201)
+
+    const res = await app.request('/api/agent-cost/personal-activity/allocate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ day_start: 1777593600 }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ imported: 1, skipped: 0, unallocated: 1 })
+  })
+})
+
 describe('agent cost project mappings', () => {
   let app: ReturnType<typeof createApp>
 

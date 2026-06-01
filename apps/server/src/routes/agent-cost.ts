@@ -1,26 +1,41 @@
 import { Hono } from 'hono'
 import {
   AGENT_COST_PROVIDERS,
+  OFFICIAL_AGENT_COST_PROVIDERS,
   type AgentCostProvider,
   type AgentCostMappingType,
+  AGENT_COST_PERSONAL_PROVIDERS,
   type AssignAgentCostEventProjectRequest,
   type CreateAgentCostProjectMappingRequest,
   type CreateManualAgentCostEventRequest,
+  type AgentCostPersonalProvider,
+  type OfficialAgentCostProvider,
   type OfficialAgentCostSyncRequest,
+  type SyncLocalAgentActivityRequest,
+  type UpsertAgentCostPersonalSubscriptionRequest,
   type UpsertAgentCostProviderConfigRequest,
 } from '@soloos/shared'
 import type { DB } from '../db/index'
 import {
   assignAgentCostEventProject,
+  allocatePersonalSubscriptionDailyCosts,
+  createAgentCostPersonalSubscription,
   createAgentCostProjectMapping,
   createManualAgentCostEvent,
+  deleteAgentCostPersonalSubscription,
   deleteAgentCostProviderConfig,
+  disableAgentCostPersonalSubscription,
   listAgentCostEvents,
+  listAgentCostPersonalSubscriptions,
+  localActivityMetadataHasContent,
+  syncLocalAgentActivityMetadata,
   listAgentCostProviderConfigs,
   syncOfficialProviderCosts,
   testAgentCostProviderConfig,
+  updateAgentCostPersonalSubscription,
   upsertAgentCostProviderConfig,
 } from '../agent-cost/agent-cost-service'
+import { detectLocalAgentCostConnectors } from '../agent-cost/local-connector-detection'
 
 const DECIMAL_AMOUNT = /^\d+(\.\d{1,6})?$/
 const COST_MAPPING_TYPES: AgentCostMappingType[] = ['provider_project_id', 'api_key_id', 'line_item']
@@ -31,6 +46,91 @@ export function agentCostRouter(db: DB) {
   app.get('/providers', async (c) => {
     const providers = await listAgentCostProviderConfigs(db)
     return c.json(providers)
+  })
+
+  app.get('/personal-subscriptions', async (c) => {
+    const subscriptions = await listAgentCostPersonalSubscriptions(db)
+    return c.json(subscriptions)
+  })
+
+  app.get('/personal-connectors', async (c) => {
+    const connectors = await detectLocalAgentCostConnectors()
+    return c.json(connectors)
+  })
+
+  app.post('/personal-subscriptions', async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+
+    const input = parsePersonalSubscription(body)
+    if ('error' in input) return c.json({ error: input.error }, 400)
+
+    const subscription = await createAgentCostPersonalSubscription(db, input.value)
+    return c.json(subscription, 201)
+  })
+
+  app.post('/personal-activity/sync', async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+
+    const input = parseLocalActivitySync(body)
+    if ('error' in input) return c.json({ error: input.error }, 400)
+
+    const result = await syncLocalAgentActivityMetadata(db, input.value)
+    return c.json(result)
+  })
+
+  app.post('/personal-activity/allocate', async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+
+    const input = parsePersonalActivityAllocation(body)
+    if ('error' in input) return c.json({ error: input.error }, 400)
+
+    const result = await allocatePersonalSubscriptionDailyCosts(db, input.value.day_start)
+    return c.json(result)
+  })
+
+  app.put('/personal-subscriptions/:id', async (c) => {
+    const { id } = c.req.param()
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400)
+    }
+
+    const input = parsePersonalSubscription(body)
+    if ('error' in input) return c.json({ error: input.error }, 400)
+
+    const subscription = await updateAgentCostPersonalSubscription(db, id, input.value)
+    if (!subscription) return c.json({ error: 'subscription not found' }, 404)
+    return c.json(subscription)
+  })
+
+  app.post('/personal-subscriptions/:id/disable', async (c) => {
+    const { id } = c.req.param()
+    const subscription = await disableAgentCostPersonalSubscription(db, id)
+    if (!subscription) return c.json({ error: 'subscription not found' }, 404)
+    return c.json(subscription)
+  })
+
+  app.delete('/personal-subscriptions/:id', async (c) => {
+    const { id } = c.req.param()
+    await deleteAgentCostPersonalSubscription(db, id)
+    return c.json({ ok: true })
   })
 
   app.post('/mappings', async (c) => {
@@ -186,8 +286,8 @@ function parseMappingRequest(body: unknown): { value: CreateAgentCostProjectMapp
   }
 }
 
-function parseOfficialProvider(provider: string): Exclude<AgentCostProvider, 'manual'> | null {
-  return isNonManualProvider(provider) ? provider : null
+function parseOfficialProvider(provider: string): OfficialAgentCostProvider | null {
+  return isOfficialAgentCostProvider(provider) ? provider : null
 }
 
 function parseAssignProjectRequest(body: unknown): { value: AssignAgentCostEventProjectRequest } | { error: string } {
@@ -212,6 +312,111 @@ function parseProviderConfig(body: unknown): { value: UpsertAgentCostProviderCon
       api_key: body.api_key.trim(),
     },
   }
+}
+
+function parsePersonalSubscription(body: unknown): { value: UpsertAgentCostPersonalSubscriptionRequest } | { error: string } {
+  if (!isRecord(body)) return { error: 'body must be an object' }
+  if (!isPersonalAgentCostProvider(body.provider)) return { error: 'provider is invalid' }
+  if (typeof body.account_type !== 'string' || !body.account_type.trim()) {
+    return { error: 'account_type is required' }
+  }
+  if (body.billing_status !== 'free' && body.billing_status !== 'paid' && body.billing_status !== 'unpaid') {
+    return { error: 'billing_status is invalid' }
+  }
+
+  const monthlyAmount = typeof body.monthly_amount === 'number' ? String(body.monthly_amount) : body.monthly_amount
+  if (typeof monthlyAmount !== 'string' || !DECIMAL_AMOUNT.test(monthlyAmount)) {
+    return { error: 'monthly_amount must be a decimal string' }
+  }
+  if (body.billing_status === 'free' && Number(monthlyAmount) !== 0) {
+    return { error: 'free accounts must have zero monthly_amount' }
+  }
+  if (body.billing_status !== 'free' && Number(monthlyAmount) <= 0) {
+    return { error: 'paid accounts must have positive monthly_amount' }
+  }
+
+  const currency = body.currency
+  if (typeof currency !== 'string' || !/^[a-zA-Z]{3}$/.test(currency)) {
+    return { error: 'currency must be a three-letter code' }
+  }
+  if (!isPositiveUnixTimestamp(body.effective_start)) {
+    return { error: 'effective_start must be a unix timestamp' }
+  }
+  if (body.effective_end !== undefined && body.effective_end !== null && !isPositiveUnixTimestamp(body.effective_end)) {
+    return { error: 'effective_end must be a unix timestamp' }
+  }
+  if (typeof body.effective_end === 'number' && body.effective_end <= body.effective_start) {
+    return { error: 'effective_end must be greater than effective_start' }
+  }
+
+  return {
+    value: {
+      provider: body.provider,
+      account_type: body.account_type.trim(),
+      billing_status: body.billing_status,
+      monthly_amount: Number(monthlyAmount).toFixed(2),
+      currency: currency.toUpperCase(),
+      effective_start: body.effective_start,
+      effective_end: typeof body.effective_end === 'number' ? body.effective_end : null,
+    },
+  }
+}
+
+function parseLocalActivitySync(body: unknown): { value: SyncLocalAgentActivityRequest } | { error: string } {
+  if (!isRecord(body)) return { error: 'body must be an object' }
+  if (!isPersonalAgentCostProvider(body.provider)) return { error: 'provider is invalid' }
+  if (!Array.isArray(body.events) || body.events.length === 0) return { error: 'events is required' }
+
+  const events: SyncLocalAgentActivityRequest['events'] = []
+  for (const event of body.events) {
+    if (!isRecord(event)) return { error: 'event must be an object' }
+    const occurredAt = event.occurred_at
+    const projectPath = event.project_path
+    const eventCount = event.event_count
+    const inputTokens = event.input_tokens
+    const outputTokens = event.output_tokens
+
+    if (!isPositiveUnixTimestamp(occurredAt)) {
+      return { error: 'occurred_at must be a unix timestamp' }
+    }
+    if (typeof projectPath !== 'string' || !projectPath.trim()) {
+      return { error: 'project_path is required' }
+    }
+    if (typeof eventCount !== 'number' || !Number.isInteger(eventCount) || eventCount <= 0) {
+      return { error: 'event_count must be a positive integer' }
+    }
+    if (inputTokens !== undefined && inputTokens !== null && (typeof inputTokens !== 'number' || !Number.isInteger(inputTokens) || inputTokens < 0)) {
+      return { error: 'input_tokens must be a non-negative integer' }
+    }
+    if (outputTokens !== undefined && outputTokens !== null && (typeof outputTokens !== 'number' || !Number.isInteger(outputTokens) || outputTokens < 0)) {
+      return { error: 'output_tokens must be a non-negative integer' }
+    }
+    if (event.raw_metadata !== undefined && !isRecord(event.raw_metadata)) {
+      return { error: 'raw_metadata must be an object' }
+    }
+    if (localActivityMetadataHasContent(event.raw_metadata ?? {})) {
+      return { error: 'local activity metadata must not include prompt or response content' }
+    }
+
+    events.push({
+      occurred_at: occurredAt,
+      project_path: projectPath.trim(),
+      event_count: eventCount,
+      input_tokens: typeof inputTokens === 'number' ? inputTokens : null,
+      output_tokens: typeof outputTokens === 'number' ? outputTokens : null,
+      raw_metadata: event.raw_metadata ?? {},
+    })
+  }
+
+  return { value: { provider: body.provider, events } }
+}
+
+function parsePersonalActivityAllocation(body: unknown): { value: { day_start: number } } | { error: string } {
+  if (!isRecord(body)) return { error: 'body must be an object' }
+  if (!isPositiveUnixTimestamp(body.day_start)) {
+    return { error: 'day_start must be a unix timestamp' }
+  }
+  return { value: { day_start: body.day_start } }
 }
 
 function parseOpenAISyncRequest(body: unknown): { value: OfficialAgentCostSyncRequest } | { error: string } {
@@ -287,8 +492,16 @@ function isAgentCostProvider(value: unknown): value is AgentCostProvider {
   return typeof value === 'string' && AGENT_COST_PROVIDERS.includes(value as AgentCostProvider)
 }
 
-function isNonManualProvider(value: unknown): value is Exclude<AgentCostProvider, 'manual'> {
-  return isAgentCostProvider(value) && value !== 'manual'
+function isOfficialAgentCostProvider(value: unknown): value is OfficialAgentCostProvider {
+  return typeof value === 'string' && OFFICIAL_AGENT_COST_PROVIDERS.includes(value as OfficialAgentCostProvider)
+}
+
+function isPersonalAgentCostProvider(value: unknown): value is AgentCostPersonalProvider {
+  return typeof value === 'string' && AGENT_COST_PERSONAL_PROVIDERS.includes(value as AgentCostPersonalProvider)
+}
+
+function isNonManualProvider(value: unknown): value is OfficialAgentCostProvider {
+  return isOfficialAgentCostProvider(value)
 }
 
 function isCostMappingType(value: unknown): value is AgentCostMappingType {

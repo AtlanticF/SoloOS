@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import type {
   AgentCostEvent,
   AgentCostEventsPage,
+  AgentCostPersonalSubscription,
   AgentCostPeriodSummary,
   AgentCostProviderConfig,
   AgentCostProviderTestResult,
@@ -11,6 +12,9 @@ import type {
   CreateAgentCostProjectMappingRequest,
   CreateManualAgentCostEventRequest,
   OfficialAgentCostSyncRequest,
+  SyncLocalAgentActivityRequest,
+  SyncLocalAgentActivityResult,
+  UpsertAgentCostPersonalSubscriptionRequest,
   UpsertAgentCostProviderConfigRequest,
 } from '@soloos/shared'
 import type { DB } from '../db/index'
@@ -20,15 +24,278 @@ import { parseJsonColumn } from '../util/json-column'
 type CostProvider = AgentCostProviderConfig['provider']
 type CostMappingType = CreateAgentCostProjectMappingRequest['match_type']
 
+export interface PersonalSubscriptionDailyCost {
+  subscription_id: string
+  provider: AgentCostPersonalSubscription['provider']
+  amount: string
+  currency: string
+  usage_start: number
+  usage_end: number
+}
+
+export interface PersonalSubscriptionAllocationResult {
+  imported: number
+  skipped: number
+  unallocated: number
+}
+
 const OPENAI_COSTS_URL = 'https://api.openai.com/v1/organization/costs'
 const ANTHROPIC_COSTS_URL = 'https://api.anthropic.com/v1/organizations/cost_report'
 const CURSOR_USAGE_EVENTS_URL = 'https://api.cursor.com/teams/filtered-usage-events'
 const CURSOR_SPEND_URL = 'https://api.cursor.com/teams/spend'
 const MAPPING_PRECEDENCE: CostMappingType[] = ['provider_project_id', 'api_key_id', 'line_item']
+const FORBIDDEN_LOCAL_ACTIVITY_KEYS = new Set(['prompt', 'response', 'transcript', 'messages', 'content'])
 
 export async function listAgentCostProviderConfigs(db: DB): Promise<AgentCostProviderConfig[]> {
   const rows = await db.select().from(schema.agent_cost_provider_configs)
   return rows.map(deserializeProviderConfig)
+}
+
+export async function listAgentCostPersonalSubscriptions(db: DB): Promise<AgentCostPersonalSubscription[]> {
+  const rows = await db.select().from(schema.agent_cost_personal_subscriptions)
+  return rows.map(deserializePersonalSubscription)
+}
+
+export async function createAgentCostPersonalSubscription(
+  db: DB,
+  input: UpsertAgentCostPersonalSubscriptionRequest,
+): Promise<AgentCostPersonalSubscription> {
+  const now = Math.floor(Date.now() / 1000)
+  const row = {
+    id: `personal_cost_${randomUUID()}`,
+    provider: input.provider,
+    account_type: input.account_type,
+    billing_status: input.billing_status,
+    monthly_amount: input.monthly_amount,
+    currency: input.currency.toUpperCase(),
+    effective_start: input.effective_start,
+    effective_end: input.effective_end ?? null,
+    source: 'user_configured',
+    confidence: 'user_confirmed',
+    enabled: 1,
+    created_at: now,
+    updated_at: now,
+  }
+
+  await db.insert(schema.agent_cost_personal_subscriptions).values(row)
+  return deserializePersonalSubscription(row)
+}
+
+export async function updateAgentCostPersonalSubscription(
+  db: DB,
+  id: string,
+  input: UpsertAgentCostPersonalSubscriptionRequest,
+): Promise<AgentCostPersonalSubscription | null> {
+  const existing = await getPersonalSubscriptionRaw(db, id)
+  if (!existing) return null
+
+  const now = Math.floor(Date.now() / 1000)
+  await db
+    .update(schema.agent_cost_personal_subscriptions)
+    .set({
+      provider: input.provider,
+      account_type: input.account_type,
+      billing_status: input.billing_status,
+      monthly_amount: input.monthly_amount,
+      currency: input.currency.toUpperCase(),
+      effective_start: input.effective_start,
+      effective_end: input.effective_end ?? null,
+      updated_at: now,
+    })
+    .where(eq(schema.agent_cost_personal_subscriptions.id, id))
+
+  return getAgentCostPersonalSubscription(db, id)
+}
+
+export async function disableAgentCostPersonalSubscription(
+  db: DB,
+  id: string,
+): Promise<AgentCostPersonalSubscription | null> {
+  const existing = await getPersonalSubscriptionRaw(db, id)
+  if (!existing) return null
+
+  await db
+    .update(schema.agent_cost_personal_subscriptions)
+    .set({ enabled: 0, updated_at: Math.floor(Date.now() / 1000) })
+    .where(eq(schema.agent_cost_personal_subscriptions.id, id))
+
+  return getAgentCostPersonalSubscription(db, id)
+}
+
+export async function deleteAgentCostPersonalSubscription(db: DB, id: string): Promise<void> {
+  await db
+    .delete(schema.agent_cost_personal_subscriptions)
+    .where(eq(schema.agent_cost_personal_subscriptions.id, id))
+}
+
+export async function calculatePersonalSubscriptionDailyCosts(
+  db: DB,
+  dayStart: number,
+): Promise<PersonalSubscriptionDailyCost[]> {
+  const dayEnd = dayStart + 86399
+  const rows = await db.select().from(schema.agent_cost_personal_subscriptions)
+  const activeRows = rows.filter((row) => {
+    if (!row.enabled) return false
+    if (row.billing_status !== 'paid') return false
+    if (toCents(row.monthly_amount) <= 0) return false
+    if (row.effective_start > dayEnd) return false
+    if (row.effective_end !== null && row.effective_end < dayStart) return false
+    return true
+  })
+  const daysInMonth = getUtcDaysInMonth(dayStart)
+
+  return activeRows.map((row) => ({
+    subscription_id: row.id,
+    provider: row.provider as AgentCostPersonalSubscription['provider'],
+    amount: fromCents(Math.round(toCents(row.monthly_amount) / daysInMonth)),
+    currency: row.currency,
+    usage_start: dayStart,
+    usage_end: dayEnd,
+  }))
+}
+
+export async function syncLocalAgentActivityMetadata(
+  db: DB,
+  input: SyncLocalAgentActivityRequest,
+): Promise<SyncLocalAgentActivityResult> {
+  let imported = 0
+  let skipped = 0
+  const now = Math.floor(Date.now() / 1000)
+
+  for (const event of input.events) {
+    const rawMetadata = event.raw_metadata ?? {}
+    const idempotencyKey = [
+      input.provider,
+      event.occurred_at,
+      event.project_path,
+      event.event_count,
+      event.input_tokens ?? '',
+      event.output_tokens ?? '',
+      JSON.stringify(rawMetadata),
+    ].join(':')
+
+    const existing = await db
+      .select({ id: schema.agent_cost_local_activity_events.id })
+      .from(schema.agent_cost_local_activity_events)
+      .where(eq(schema.agent_cost_local_activity_events.idempotency_key, idempotencyKey))
+      .limit(1)
+
+    if (existing[0]) {
+      skipped += 1
+      continue
+    }
+
+    await db.insert(schema.agent_cost_local_activity_events).values({
+      id: `local_activity_${randomUUID()}`,
+      provider: input.provider,
+      occurred_at: event.occurred_at,
+      project_path: event.project_path,
+      event_count: event.event_count,
+      input_tokens: event.input_tokens ?? null,
+      output_tokens: event.output_tokens ?? null,
+      raw_metadata: JSON.stringify(rawMetadata),
+      idempotency_key: idempotencyKey,
+      created_at: now,
+    })
+    imported += 1
+  }
+
+  return { provider: input.provider, imported, skipped }
+}
+
+export async function allocatePersonalSubscriptionDailyCosts(
+  db: DB,
+  dayStart: number,
+): Promise<PersonalSubscriptionAllocationResult> {
+  const dailyCosts = await calculatePersonalSubscriptionDailyCosts(db, dayStart)
+  const dayEnd = dayStart + 86399
+  let imported = 0
+  let skipped = 0
+  let unallocated = 0
+
+  for (const dailyCost of dailyCosts) {
+    const activities = await db
+      .select()
+      .from(schema.agent_cost_local_activity_events)
+      .where(and(
+        eq(schema.agent_cost_local_activity_events.provider, dailyCost.provider),
+        gte(schema.agent_cost_local_activity_events.occurred_at, dayStart),
+        lte(schema.agent_cost_local_activity_events.occurred_at, dayEnd),
+      ))
+
+    const weightedProjectCounts = new Map<string | null, number>()
+    if (activities.length === 0) {
+      weightedProjectCounts.set(null, 1)
+    } else {
+      for (const activity of activities) {
+        const projectId = await resolveProjectIdByPath(db, activity.project_path)
+        weightedProjectCounts.set(projectId, (weightedProjectCounts.get(projectId) ?? 0) + activity.event_count)
+      }
+    }
+
+    const totalWeight = Array.from(weightedProjectCounts.values()).reduce((sum, weight) => sum + weight, 0)
+    const totalCents = toCents(dailyCost.amount)
+
+    for (const [projectId, weight] of weightedProjectCounts) {
+      const amount = fromCents(Math.round(totalCents * (weight / totalWeight)))
+      const lineItem = projectId ? 'personal-subscription-allocation' : 'personal-subscription-unallocated'
+      const idempotencyKey = [
+        'personal_subscription_daily_allocation',
+        dailyCost.subscription_id,
+        dayStart,
+        projectId ?? 'unallocated',
+      ].join(':')
+
+      const existing = await db
+        .select({ id: schema.agent_cost_events.id })
+        .from(schema.agent_cost_events)
+        .where(eq(schema.agent_cost_events.idempotency_key, idempotencyKey))
+        .limit(1)
+
+      if (existing[0]) {
+        skipped += 1
+        if (!projectId) unallocated += 1
+        continue
+      }
+
+      await db.insert(schema.agent_cost_events).values({
+        id: `cost_${randomUUID()}`,
+        provider: dailyCost.provider,
+        source: 'sdk_estimate',
+        project_id: projectId,
+        provider_project_id: null,
+        api_key_id: null,
+        line_item: lineItem,
+        model: null,
+        tool_label: dailyCost.provider,
+        amount,
+        currency: dailyCost.currency,
+        usage_start: dailyCost.usage_start,
+        usage_end: dailyCost.usage_end,
+        idempotency_key: idempotencyKey,
+        raw_metadata: JSON.stringify({
+          source: 'personal_subscription_daily_allocation',
+          subscription_id: dailyCost.subscription_id,
+        }),
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      imported += 1
+      if (!projectId) unallocated += 1
+    }
+  }
+
+  return { imported, skipped, unallocated }
+}
+
+export function localActivityMetadataHasContent(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => localActivityMetadataHasContent(item))
+  if (typeof value !== 'object' || value === null) return false
+
+  return Object.entries(value).some(([key, child]) => {
+    if (FORBIDDEN_LOCAL_ACTIVITY_KEYS.has(key.toLowerCase())) return true
+    return localActivityMetadataHasContent(child)
+  })
 }
 
 export async function upsertAgentCostProviderConfig(
@@ -199,6 +466,23 @@ async function getProviderConfigRaw(db: DB, provider: CostProvider) {
     .select()
     .from(schema.agent_cost_provider_configs)
     .where(eq(schema.agent_cost_provider_configs.provider, provider))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+async function getAgentCostPersonalSubscription(
+  db: DB,
+  id: string,
+): Promise<AgentCostPersonalSubscription | null> {
+  const row = await getPersonalSubscriptionRaw(db, id)
+  return row ? deserializePersonalSubscription(row) : null
+}
+
+async function getPersonalSubscriptionRaw(db: DB, id: string) {
+  const rows = await db
+    .select()
+    .from(schema.agent_cost_personal_subscriptions)
+    .where(eq(schema.agent_cost_personal_subscriptions.id, id))
     .limit(1)
   return rows[0] ?? null
 }
@@ -623,11 +907,23 @@ export async function summarizeAgentCostsForPeriod(
   let totalCents = 0
   let assignedCents = 0
   let unassignedCents = 0
+  let officialApiCents = 0
+  let personalSubscriptionAllocatedCents = 0
+  let personalSubscriptionUnallocatedCents = 0
   const projectCents = new Map<string, number>()
 
   for (const row of rows) {
     const cents = toCents(row.amount)
     totalCents += cents
+    if (row.source === 'official_api' || row.source === 'official_export') {
+      officialApiCents += cents
+    }
+    if (row.source === 'sdk_estimate' && row.line_item === 'personal-subscription-allocation') {
+      personalSubscriptionAllocatedCents += cents
+    }
+    if (row.source === 'sdk_estimate' && row.line_item === 'personal-subscription-unallocated') {
+      personalSubscriptionUnallocatedCents += cents
+    }
     if (row.project_id) {
       assignedCents += cents
       projectCents.set(row.project_id, (projectCents.get(row.project_id) ?? 0) + cents)
@@ -641,6 +937,9 @@ export async function summarizeAgentCostsForPeriod(
     total_amount: fromCents(totalCents),
     assigned_amount: fromCents(assignedCents),
     unassigned_amount: fromCents(unassignedCents),
+    official_api_amount: fromCents(officialApiCents),
+    personal_subscription_allocated_amount: fromCents(personalSubscriptionAllocatedCents),
+    personal_subscription_unallocated_amount: fromCents(personalSubscriptionUnallocatedCents),
     project_costs: [...projectCents.entries()].map(([project_id, amount]) => ({
       project_id,
       amount: fromCents(amount),
@@ -681,6 +980,15 @@ async function resolveMappedProjectId(
   return null
 }
 
+async function resolveProjectIdByPath(db: DB, projectPath: string): Promise<string | null> {
+  const projects = await db.select().from(schema.projects)
+  for (const project of projects) {
+    const rules = parseJsonColumn<{ paths?: string[] }>(project.match_rules, {})
+    if (Array.isArray(rules.paths) && rules.paths.includes(projectPath)) return project.id
+  }
+  return null
+}
+
 function deserializeAgentCostEvent(row: typeof schema.agent_cost_events.$inferSelect): AgentCostEvent {
   return {
     id: row.id,
@@ -716,6 +1024,26 @@ function deserializeProviderConfig(row: typeof schema.agent_cost_provider_config
   }
 }
 
+function deserializePersonalSubscription(
+  row: typeof schema.agent_cost_personal_subscriptions.$inferSelect,
+): AgentCostPersonalSubscription {
+  return {
+    id: row.id,
+    provider: row.provider as AgentCostPersonalSubscription['provider'],
+    account_type: row.account_type,
+    billing_status: row.billing_status as AgentCostPersonalSubscription['billing_status'],
+    monthly_amount: row.monthly_amount,
+    currency: row.currency,
+    effective_start: row.effective_start,
+    effective_end: row.effective_end,
+    source: row.source as AgentCostPersonalSubscription['source'],
+    confidence: row.confidence as AgentCostPersonalSubscription['confidence'],
+    enabled: Boolean(row.enabled),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
 function maskKey(key: string): string {
   if (key.length <= 4) return '****'
   return `****${key.slice(-4)}`
@@ -727,6 +1055,11 @@ function toCents(amount: string): number {
 
 function fromCents(cents: number): string {
   return (cents / 100).toFixed(2)
+}
+
+function getUtcDaysInMonth(unixTimestamp: number): number {
+  const date = new Date(unixTimestamp * 1000)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
 }
 
 function formatAmount(value: number): string {

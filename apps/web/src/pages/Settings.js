@@ -14,6 +14,7 @@ const LANGUAGES = [
 ];
 const PROVIDERS = ['openai', 'anthropic', 'google', 'groq', 'ollama', 'custom'];
 const COST_PROVIDERS = ['openai', 'anthropic', 'cursor'];
+const PERSONAL_COST_PROVIDERS = ['anthropic', 'cursor', 'codex'];
 const HEALTH_KEY = 'soloos-agent-health';
 function setAgentHealth(status) {
     if (status === null)
@@ -42,6 +43,14 @@ export function Settings() {
         queryKey: queryKeys.agentCostProviders(),
         queryFn: api.agentCost.providers,
     });
+    const { data: personalSubscriptions = [] } = useQuery({
+        queryKey: queryKeys.agentCostPersonalSubscriptions(),
+        queryFn: api.agentCost.personalSubscriptions,
+    });
+    const { data: personalConnectors = [] } = useQuery({
+        queryKey: queryKeys.agentCostPersonalConnectors(),
+        queryFn: api.agentCost.personalConnectors,
+    });
     const { data: projects = [] } = useQuery({
         queryKey: queryKeys.projects(),
         queryFn: api.projects.list,
@@ -63,7 +72,13 @@ export function Settings() {
         anthropic: { label: '', apiKey: '' },
         cursor: { label: '', apiKey: '' },
     });
+    const [personalCostForms, setPersonalCostForms] = useState({
+        anthropic: { accountType: 'Claude Pro', monthlyAmount: '20.00', billingStatus: 'paid' },
+        cursor: { accountType: 'Cursor Pro', monthlyAmount: '20.00', billingStatus: 'paid' },
+        codex: { accountType: 'ChatGPT Plus', monthlyAmount: '20.00', billingStatus: 'paid' },
+    });
     const [costStatus, setCostStatus] = useState({});
+    const [personalCostStatus, setPersonalCostStatus] = useState(null);
     const [selectedCostProjects, setSelectedCostProjects] = useState({});
     const [testPhase, setTestPhase] = useState('idle');
     const [errorDetail, setErrorDetail] = useState(null);
@@ -216,6 +231,50 @@ export function Settings() {
             queryClient.invalidateQueries({ queryKey: queryKeys.projectEconomics() });
         },
     });
+    const { mutate: savePersonalSubscription, isPending: savingPersonalSubscription } = useMutation({
+        mutationFn: (p) => {
+            const form = personalCostForms[p];
+            const existing = personalSubscriptions.find((item) => item.provider === p);
+            const body = {
+                provider: p,
+                account_type: form.accountType.trim() || p,
+                billing_status: form.billingStatus,
+                monthly_amount: form.billingStatus === 'free' ? '0.00' : form.monthlyAmount.trim(),
+                currency: 'USD',
+                effective_start: Math.floor(Date.now() / 1000),
+            };
+            return existing ? api.agentCost.updatePersonalSubscription(existing.id, body) : api.agentCost.savePersonalSubscription(body);
+        },
+        onSuccess: (subscription) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.agentCostPersonalSubscriptions() });
+            setPersonalCostStatus(t('settings.personalCostSaved', { provider: subscription.provider }));
+        },
+        onError: (err) => setPersonalCostStatus(String(err)),
+    });
+    const { mutate: disablePersonalSubscription, isPending: disablingPersonalSubscription } = useMutation({
+        mutationFn: (id) => api.agentCost.disablePersonalSubscription(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.agentCostPersonalSubscriptions() });
+            setPersonalCostStatus(t('settings.personalCostDisabled'));
+        },
+    });
+    const { mutate: allocatePersonalActivity, isPending: allocatingPersonalActivity } = useMutation({
+        mutationFn: () => {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            return api.agentCost.allocatePersonalActivity(Math.floor(now.getTime() / 1000));
+        },
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.agentCostEvents({ assignment: 'unassigned', limit: 10 }) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.projectEconomics() });
+            setPersonalCostStatus(t('settings.personalCostSyncResult', {
+                imported: result.imported,
+                skipped: result.skipped,
+                unallocated: result.unallocated,
+            }));
+        },
+        onError: (err) => setPersonalCostStatus(String(err)),
+    });
     function handleProviderChange(p) {
         setProvider(p);
         const defaults = PROVIDER_DEFAULTS[p];
@@ -239,6 +298,9 @@ export function Settings() {
     }
     function updateCostForm(p, patch) {
         setCostForms((current) => ({ ...current, [p]: { ...current[p], ...patch } }));
+    }
+    function updatePersonalCostForm(p, patch) {
+        setPersonalCostForms((current) => ({ ...current, [p]: { ...current[p], ...patch } }));
     }
     function saveCostConfig(p) {
         const saved = costProviderConfigs.find((item) => item.provider === p);
@@ -275,7 +337,12 @@ export function Settings() {
                                                     background: saved.status === 'ok' ? '#14532d20' : saved.status === 'error' ? '#7f1d1d20' : '#3f3f4620',
                                                     color: saved.status === 'ok' ? '#4ade80' : saved.status === 'error' ? '#fca5a5' : '#a1a1aa',
                                                 }, children: saved.status }))] }), _jsx("input", { type: "text", value: costForms[p].label, onChange: e => updateCostForm(p, { label: e.target.value }), placeholder: saved?.label ?? `${p} team`, className: "rounded-lg px-3 py-2 text-xs", style: { background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' } }), _jsx("input", { type: "password", value: costForms[p].apiKey, onChange: e => updateCostForm(p, { apiKey: e.target.value }), placeholder: t('settings.costApiKeyPlaceholder'), className: "rounded-lg px-3 py-2 text-xs font-mono", style: { background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' } }), _jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [_jsx(Button, { size: "sm", onClick: () => saveCostConfig(p), disabled: !costForms[p].apiKey.trim() || busy, children: savingCostProvider ? _jsx(Loader2, { size: 13, className: "animate-spin" }) : t('settings.save') }), _jsx(Button, { size: "sm", variant: "outline", onClick: () => testCostProvider(p), disabled: !saved || busy, children: testingCostProvider ? _jsx(Loader2, { size: 13, className: "animate-spin" }) : t('settings.testConnection') }), _jsxs(Button, { size: "sm", variant: "outline", onClick: () => syncCostProvider(p), disabled: !saved || busy, className: "gap-1.5", children: [syncingCostProvider ? _jsx(Loader2, { size: 13, className: "animate-spin" }) : _jsx(RefreshCw, { size: 13 }), t('settings.sync')] }), saved && (_jsx(Button, { size: "sm", variant: "outline", onClick: () => deleteCostProvider(p), disabled: busy, style: { borderColor: '#ef444433', color: '#ef4444' }, children: _jsx(Trash2, { size: 13 }) }))] }), costStatus[p] && (_jsx("div", { className: "text-[11px] rounded px-2 py-1", style: { background: '#111', color: '#a1a1aa' }, children: costStatus[p] }))] }, p));
-                        }) }), _jsxs("div", { className: "rounded-lg border", style: { borderColor: '#27272a' }, children: [_jsxs("div", { className: "px-3 py-2 border-b flex items-center justify-between gap-3", style: { borderColor: '#27272a' }, children: [_jsxs("div", { children: [_jsx("div", { className: "text-xs font-medium", style: { color: '#e4e4e7' }, children: t('settings.unassignedCosts') }), _jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.unassignedCostsDesc') })] }), _jsx("span", { className: "text-xs font-mono", style: { color: '#a1a1aa' }, children: unassignedCosts?.items.length ?? 0 })] }), !unassignedCosts || unassignedCosts.items.length === 0 ? (_jsx("div", { className: "px-3 py-3 text-xs", style: { color: '#52525b' }, children: t('settings.noUnassignedCosts') })) : (_jsx("div", { className: "divide-y", style: { borderColor: '#18181b' }, children: unassignedCosts.items.map((event) => (_jsxs("div", { className: "grid gap-2 px-3 py-2 md:grid-cols-[1fr_180px_auto] md:items-center", style: { borderColor: '#18181b' }, children: [_jsxs("div", { className: "min-w-0", children: [_jsxs("div", { className: "text-xs font-medium truncate", style: { color: '#e4e4e7' }, children: [event.provider, " \u00B7 ", event.model ?? event.line_item ?? event.provider_project_id ?? event.id] }), _jsxs("div", { className: "text-[11px] font-mono truncate", style: { color: '#71717a' }, children: [event.currency, " ", event.amount, " \u00B7 ", event.provider_project_id ?? event.line_item ?? '-'] })] }), _jsxs("select", { value: selectedCostProjects[event.id] ?? '', onChange: e => setSelectedCostProjects((current) => ({ ...current, [event.id]: e.target.value })), className: "rounded-lg px-3 py-2 text-xs", style: { background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }, children: [_jsx("option", { value: "", children: t('settings.chooseProject') }), projects.map((project) => (_jsx("option", { value: project.id, children: project.name }, project.id)))] }), _jsx(Button, { size: "sm", variant: "outline", disabled: !selectedCostProjects[event.id] || assigningCostProject, onClick: () => assignCostProject({ eventId: event.id, projectId: selectedCostProjects[event.id] }), children: assigningCostProject ? t('settings.assigning') : t('settings.assign') })] }, event.id))) }))] })] }), _jsxs("section", { className: "rounded-xl p-5 flex flex-col gap-4", style: { background: '#111', border: '1px solid #1e1e22' }, children: [_jsxs("div", { children: [_jsx("span", { className: "text-xs font-semibold uppercase tracking-widest block mb-0.5", style: { color: '#52525b' }, children: t('settings.language') }), _jsx("p", { className: "text-xs mt-1", style: { color: '#71717a' }, children: t('settings.languageDesc') })] }), _jsx("div", { className: "flex gap-2", children: LANGUAGES.map(lang => {
+                        }) }), _jsxs("div", { className: "rounded-lg border p-3 flex flex-col gap-3", style: { borderColor: '#27272a', background: '#18181b' }, children: [_jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { children: [_jsx("div", { className: "text-xs font-medium", style: { color: '#e4e4e7' }, children: t('settings.personalAgentCost') }), _jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.personalAgentCostDesc') })] }), _jsxs(Button, { size: "sm", variant: "outline", onClick: () => allocatePersonalActivity(), disabled: allocatingPersonalActivity, className: "gap-1.5", children: [allocatingPersonalActivity ? _jsx(Loader2, { size: 13, className: "animate-spin" }) : _jsx(RefreshCw, { size: 13 }), t('settings.sync')] })] }), _jsx("div", { className: "grid gap-3 md:grid-cols-3", children: PERSONAL_COST_PROVIDERS.map((p) => {
+                                    const saved = personalSubscriptions.find((item) => item.provider === p);
+                                    const connector = personalConnectors.find((item) => item.provider === p);
+                                    const busy = savingPersonalSubscription || disablingPersonalSubscription;
+                                    return (_jsxs("div", { className: "rounded-md border p-3 flex flex-col gap-2", style: { borderColor: '#27272a', background: '#111' }, children: [_jsxs("div", { className: "flex items-start justify-between gap-2", children: [_jsxs("div", { children: [_jsx("div", { className: "text-sm font-semibold capitalize", style: { color: '#e4e4e7' }, children: p }), _jsx("div", { className: "text-[11px] font-mono", style: { color: connector?.status === 'installed' ? '#4ade80' : '#71717a' }, children: connector ? `${connector.cli}: ${connector.status}` : t('settings.detecting') })] }), saved && (_jsx("span", { className: "text-[11px] px-2 py-0.5 rounded", style: { background: saved.enabled ? '#14532d20' : '#3f3f4620', color: saved.enabled ? '#4ade80' : '#a1a1aa' }, children: saved.enabled ? saved.billing_status : t('settings.disabled') }))] }), _jsx("input", { type: "text", value: personalCostForms[p].accountType, onChange: e => updatePersonalCostForm(p, { accountType: e.target.value }), className: "rounded-lg px-3 py-2 text-xs", style: { background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' } }), _jsxs("div", { className: "grid grid-cols-[1fr_96px] gap-2", children: [_jsxs("select", { value: personalCostForms[p].billingStatus, onChange: e => updatePersonalCostForm(p, { billingStatus: e.target.value }), className: "rounded-lg px-3 py-2 text-xs", style: { background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }, children: [_jsx("option", { value: "paid", children: t('settings.paid') }), _jsx("option", { value: "free", children: t('settings.free') }), _jsx("option", { value: "unpaid", children: t('settings.unpaid') })] }), _jsx("input", { type: "number", min: "0", step: "0.01", value: personalCostForms[p].monthlyAmount, onChange: e => updatePersonalCostForm(p, { monthlyAmount: e.target.value }), disabled: personalCostForms[p].billingStatus === 'free', className: "rounded-lg px-3 py-2 text-xs", style: { background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' } })] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Button, { size: "sm", onClick: () => savePersonalSubscription(p), disabled: busy, children: savingPersonalSubscription ? _jsx(Loader2, { size: 13, className: "animate-spin" }) : t('settings.save') }), saved?.enabled && (_jsx(Button, { size: "sm", variant: "outline", onClick: () => disablePersonalSubscription(saved.id), disabled: busy, children: t('settings.disable') }))] })] }, p));
+                                }) }), _jsxs("div", { className: "grid gap-2 md:grid-cols-3", children: [_jsxs("div", { className: "rounded-md px-3 py-2", style: { background: '#111', border: '1px solid #27272a' }, children: [_jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.officialCost') }), _jsx("div", { className: "text-xs font-mono", style: { color: '#e4e4e7' }, children: t('settings.availableInReview') })] }), _jsxs("div", { className: "rounded-md px-3 py-2", style: { background: '#111', border: '1px solid #27272a' }, children: [_jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.personalAllocatedCost') }), _jsx("div", { className: "text-xs font-mono", style: { color: '#e4e4e7' }, children: t('settings.availableInReview') })] }), _jsxs("div", { className: "rounded-md px-3 py-2", style: { background: '#111', border: '1px solid #27272a' }, children: [_jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.personalUnallocatedCost') }), _jsx("div", { className: "text-xs font-mono", style: { color: '#e4e4e7' }, children: t('settings.availableInReview') })] })] }), personalCostStatus && (_jsx("div", { className: "text-[11px] rounded px-2 py-1", style: { background: '#111', color: '#a1a1aa' }, children: personalCostStatus }))] }), _jsxs("div", { className: "rounded-lg border", style: { borderColor: '#27272a' }, children: [_jsxs("div", { className: "px-3 py-2 border-b flex items-center justify-between gap-3", style: { borderColor: '#27272a' }, children: [_jsxs("div", { children: [_jsx("div", { className: "text-xs font-medium", style: { color: '#e4e4e7' }, children: t('settings.unassignedCosts') }), _jsx("div", { className: "text-[11px]", style: { color: '#71717a' }, children: t('settings.unassignedCostsDesc') })] }), _jsx("span", { className: "text-xs font-mono", style: { color: '#a1a1aa' }, children: unassignedCosts?.items.length ?? 0 })] }), !unassignedCosts || unassignedCosts.items.length === 0 ? (_jsx("div", { className: "px-3 py-3 text-xs", style: { color: '#52525b' }, children: t('settings.noUnassignedCosts') })) : (_jsx("div", { className: "divide-y", style: { borderColor: '#18181b' }, children: unassignedCosts.items.map((event) => (_jsxs("div", { className: "grid gap-2 px-3 py-2 md:grid-cols-[1fr_180px_auto] md:items-center", style: { borderColor: '#18181b' }, children: [_jsxs("div", { className: "min-w-0", children: [_jsxs("div", { className: "text-xs font-medium truncate", style: { color: '#e4e4e7' }, children: [event.provider, " \u00B7 ", event.model ?? event.line_item ?? event.provider_project_id ?? event.id] }), _jsxs("div", { className: "text-[11px] font-mono truncate", style: { color: '#71717a' }, children: [event.currency, " ", event.amount, " \u00B7 ", event.provider_project_id ?? event.line_item ?? '-'] })] }), _jsxs("select", { value: selectedCostProjects[event.id] ?? '', onChange: e => setSelectedCostProjects((current) => ({ ...current, [event.id]: e.target.value })), className: "rounded-lg px-3 py-2 text-xs", style: { background: '#111', border: '1px solid #27272a', color: '#e4e4e7', outline: 'none' }, children: [_jsx("option", { value: "", children: t('settings.chooseProject') }), projects.map((project) => (_jsx("option", { value: project.id, children: project.name }, project.id)))] }), _jsx(Button, { size: "sm", variant: "outline", disabled: !selectedCostProjects[event.id] || assigningCostProject, onClick: () => assignCostProject({ eventId: event.id, projectId: selectedCostProjects[event.id] }), children: assigningCostProject ? t('settings.assigning') : t('settings.assign') })] }, event.id))) }))] })] }), _jsxs("section", { className: "rounded-xl p-5 flex flex-col gap-4", style: { background: '#111', border: '1px solid #1e1e22' }, children: [_jsxs("div", { children: [_jsx("span", { className: "text-xs font-semibold uppercase tracking-widest block mb-0.5", style: { color: '#52525b' }, children: t('settings.language') }), _jsx("p", { className: "text-xs mt-1", style: { color: '#71717a' }, children: t('settings.languageDesc') })] }), _jsx("div", { className: "flex gap-2", children: LANGUAGES.map(lang => {
                             const active = i18n.language === lang.code;
                             return (_jsxs("button", { onClick: () => changeLang(lang.code), className: "px-4 py-2 rounded-lg text-sm font-medium transition-colors", style: {
                                     background: active ? '#18181b' : 'transparent',

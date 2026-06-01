@@ -64,6 +64,20 @@
       "when": 1780194000000,
       "tag": "0008_agent_cost_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1780200000000,
+      "tag": "0009_personal_agent_cost_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1780203600000,
+      "tag": "0010_agent_cost_local_activity",
+      "breakpoints": true
     }
   ]
 }

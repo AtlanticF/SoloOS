@@ -1,4 +1,10 @@
-export const AGENT_COST_PROVIDERS = ['openai', 'anthropic', 'cursor', 'manual'] as const
+export const OFFICIAL_AGENT_COST_PROVIDERS = ['openai', 'anthropic', 'cursor'] as const
+export type OfficialAgentCostProvider = typeof OFFICIAL_AGENT_COST_PROVIDERS[number]
+
+export const AGENT_COST_PERSONAL_PROVIDERS = ['anthropic', 'cursor', 'codex'] as const
+export type AgentCostPersonalProvider = typeof AGENT_COST_PERSONAL_PROVIDERS[number]
+
+export const AGENT_COST_PROVIDERS = ['openai', 'anthropic', 'cursor', 'codex', 'manual'] as const
 export type AgentCostProvider = typeof AGENT_COST_PROVIDERS[number]
 
 export const AGENT_COST_SOURCES = ['official_api', 'official_export', 'sdk_estimate', 'manual'] as const
@@ -10,7 +16,7 @@ export type AgentCostMappingType = 'provider_project_id' | 'api_key_id' | 'line_
 
 export interface AgentCostProviderConfig {
   id: string
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   label: string
   api_key_masked: string
   status: AgentCostProviderStatus
@@ -27,7 +33,7 @@ export interface UpsertAgentCostProviderConfigRequest {
 
 export interface AgentCostProviderTestResult {
   ok: boolean
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   status: AgentCostProviderStatus
   error?: string
 }
@@ -39,7 +45,7 @@ export interface OfficialAgentCostSyncRequest {
 export type OpenAIAgentCostSyncRequest = OfficialAgentCostSyncRequest
 
 export interface AgentCostSyncResult {
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   imported: number
   skipped: number
   unassigned: number
@@ -98,12 +104,15 @@ export interface AgentCostPeriodSummary {
   total_amount: string
   assigned_amount: string
   unassigned_amount: string
+  official_api_amount: string
+  personal_subscription_allocated_amount: string
+  personal_subscription_unallocated_amount: string
   project_costs: AgentCostProjectSummary[]
 }
 
 export interface AgentCostProjectMapping {
   id: string
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   match_type: AgentCostMappingType
   match_value: string
   project_id: string
@@ -112,7 +121,7 @@ export interface AgentCostProjectMapping {
 }
 
 export interface CreateAgentCostProjectMappingRequest {
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   match_type: AgentCostMappingType
   match_value: string
   project_id: string
@@ -124,10 +133,89 @@ export interface AssignAgentCostEventProjectRequest {
 
 export interface AgentCostSyncState {
   id: string
-  provider: Exclude<AgentCostProvider, 'manual'>
+  provider: OfficialAgentCostProvider
   last_synced_at: number | null
   sync_status: AgentCostSyncStatus
   error_message: string | null
   created_at: number
   updated_at: number
+}
+
+export type AgentCostPersonalBillingStatus = 'free' | 'paid' | 'unpaid'
+export type AgentCostPersonalSubscriptionSource = 'user_configured'
+export type AgentCostPersonalSubscriptionConfidence = 'user_confirmed'
+
+export interface AgentCostPersonalSubscription {
+  id: string
+  provider: AgentCostPersonalProvider
+  account_type: string
+  billing_status: AgentCostPersonalBillingStatus
+  /** Decimal string, e.g. "20.00" */
+  monthly_amount: string
+  currency: string
+  effective_start: number
+  effective_end: number | null
+  source: AgentCostPersonalSubscriptionSource
+  confidence: AgentCostPersonalSubscriptionConfidence
+  enabled: boolean
+  created_at: number
+  updated_at: number
+}
+
+export interface UpsertAgentCostPersonalSubscriptionRequest {
+  provider: AgentCostPersonalProvider
+  account_type: string
+  billing_status: AgentCostPersonalBillingStatus
+  /** Decimal string, e.g. "20.00" */
+  monthly_amount: string
+  currency: string
+  effective_start: number
+  effective_end?: number | null
+}
+
+export interface AgentCostLocalActivityEvent {
+  id: string
+  provider: AgentCostPersonalProvider
+  occurred_at: number
+  project_path: string
+  event_count: number
+  input_tokens: number | null
+  output_tokens: number | null
+  raw_metadata: Record<string, unknown>
+  created_at: number
+}
+
+export interface LocalAgentActivityMetadataInput {
+  occurred_at: number
+  project_path: string
+  event_count: number
+  input_tokens?: number | null
+  output_tokens?: number | null
+  raw_metadata?: Record<string, unknown>
+}
+
+export interface SyncLocalAgentActivityRequest {
+  provider: AgentCostPersonalProvider
+  events: LocalAgentActivityMetadataInput[]
+}
+
+export interface SyncLocalAgentActivityResult {
+  provider: AgentCostPersonalProvider
+  imported: number
+  skipped: number
+}
+
+export type LocalAgentConnectorStatus = 'installed' | 'missing' | 'unsupported'
+
+export interface LocalAgentCostConnector {
+  provider: AgentCostPersonalProvider
+  cli: 'claude' | 'cursor-agent' | 'codex'
+  status: LocalAgentConnectorStatus
+  command: string | null
+}
+
+export interface PersonalSubscriptionAllocationResult {
+  imported: number
+  skipped: number
+  unallocated: number
 }
