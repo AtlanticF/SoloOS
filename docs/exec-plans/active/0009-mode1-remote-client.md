@@ -66,7 +66,7 @@ smoke.
   - Done = `pnpm serve` boots on 5010 (smoke) and prints the open URL; `pnpm dev`
     still serves on 3000.
 
-- [ ] **Issue 3 — Connection Gate (web) + polling**
+- [x] **Issue 3 — Connection Gate (web) + polling**
   - Outcome: a `ConnectionGate` wraps `App`; **inert when `VITE_API_BASE` is
     relative** (renders `App` immediately); when absolute, it polls `<base>/health`
     (~1.5s) and renders `App` only after an `app === 'soloos'` signature, showing
@@ -80,7 +80,7 @@ smoke.
     + a pure `lib/connection.ts`).
   - Done = decision-logic tests green; manual: hosted build auto-connects.
 
-- [ ] **Issue 4 — Hosted build config**
+- [x] **Issue 4 — Hosted build config**
   - Outcome: `vercel.json` (static SPA) + a documented build env so
     `VITE_API_BASE=http://localhost:5010/api pnpm --filter web build` yields a
     deployable client; README/spec note the deploy steps (user deploys).
@@ -96,7 +96,8 @@ smoke.
 
 ## Now
 
-- Implement Issue 3 (Connection Gate UI + polling) test-first.
+- All four issues green. Ready to advance implement → evaluate (L2). Pending
+  manual browser smoke (Chromium) of the hosted-style auto-connect.
 
 ## Decisions log
 
@@ -117,3 +118,15 @@ smoke.
   (wraps the exact command the Issue 1 smoke proved boots on 5010). Root package
   is named `soloos`, so a future `bin` makes `npx soloos serve` a trivial publish
   step. Mode-2 `pnpm dev` (3000) unchanged.
+- 2026-06-01: Issue 3 green. Added `lib/connection.ts` (`isRemoteBase`,
+  `isSoloosHealth`, `probeServer`) + a `ConnectionGate` wrapping `App` in
+  `main.tsx`: inert for a relative base (Mode 2 renders immediately), polls
+  `<origin>/health` every 1.5s for a remote base and renders only on a `soloos`
+  signature, showing the start-server screen (SoloOS dark theme) + en/zh i18n.
+  Closed the web's zero-test gap with a minimal vitest (node env). Verified: 7
+  web tests + full build green. React polling/UI ⇒ browser smoke at evaluate.
+- 2026-06-01: Issue 4 green. `apps/web/vercel.json` (SPA rewrites); README "Remote
+  client (Mode 1)" documents `pnpm serve` + the build/deploy + a local
+  hosted-style test (vite preview on :4173). Verified:
+  `VITE_API_BASE=http://localhost:5010/api pnpm --filter web build` bakes
+  `localhost:5010/api` into the bundle.

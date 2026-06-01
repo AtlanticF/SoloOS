@@ -62,6 +62,14 @@ export default {
         dormant: 'dormant',
         events: '{{count}} events',
     },
+    connect: {
+        title: 'Start the local server',
+        subtitle: 'One command — this page connects automatically.',
+        commandLabel: 'Terminal',
+        waiting: 'Listening for the server…',
+        waitingHint: 'Connects automatically once detected — no refresh needed.',
+        requirements: 'Requires Node.js 20+ · port 5010',
+    },
     review: {
         title: 'Weekly review',
         period: '{{start}} → {{end}}',

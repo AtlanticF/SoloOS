@@ -62,6 +62,14 @@ export default {
         dormant: '休眠',
         events: '{{count}} 条事件',
     },
+    connect: {
+        title: '启动本地服务器',
+        subtitle: '只需一条命令，页面会自动连接。',
+        commandLabel: '终端',
+        waiting: '正在监听服务器…',
+        waitingHint: '检测到后会自动连接，无需刷新。',
+        requirements: '需要 Node.js 20+ · 端口 5010',
+    },
     review: {
         title: '每周复盘',
         period: '{{start}} → {{end}}',
