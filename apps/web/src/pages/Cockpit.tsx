@@ -25,13 +25,16 @@ export function Cockpit() {
     queryKey: queryKeys.projects(),
     queryFn: api.projects.list,
   })
+  const { data: balance = [] } = useQuery({
+    queryKey: queryKeys.balance(),
+    queryFn: api.balance.get,
+  })
 
-  const pillarTotals = Object.fromEntries(PILLARS.map(p => [p, 0])) as Record<Pillar, number>
-  for (const e of events) pillarTotals[e.pillar as Pillar] += Math.max(0, e.impact_score)
-  const maxTotal = Math.max(1, ...Object.values(pillarTotals))
+  // Radar scores come from the server (flow pillars normalized vs their own
+  // trailing weekly max; Energy as a level). See balance-service.
   const scores = PILLARS.map(pillar => ({
     pillar,
-    score: Math.round((pillarTotals[pillar] / maxTotal) * 100),
+    score: balance.find(b => b.pillar === pillar)?.score ?? 0,
   }))
 
   const financialEvents = events.filter(e => e.pillar === 'FINANCIAL')

@@ -46,6 +46,9 @@ export const api = {
     projects: {
         list: () => get('/projects'),
     },
+    balance: {
+        get: () => get('/balance'),
+    },
     reviews: {
         current: () => get('/reviews/current'),
         complete: (id, reflection, energyRating, agentCostDecision) => post(`/reviews/${id}/complete`, { reflection, energy_rating: energyRating, agent_cost_decision: agentCostDecision }),
@@ -127,6 +130,7 @@ export const queryKeys = {
     events: (params) => ['events', params],
     projects: () => ['projects'],
     reviewCurrent: () => ['reviews', 'current'],
+    balance: () => ['balance'],
     insights: (params) => ['insights', params],
     agentConfig: () => ['agent-config'],
     agentHealth: () => ['agent-health'],

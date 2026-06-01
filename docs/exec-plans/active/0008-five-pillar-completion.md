@@ -88,7 +88,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
     `github-config-service` for token/repos.
   - Done = service + API tests green; manual capture to AUDIENCE still works.
 
-- [ ] **Issue 4 — Radar flow-vs-level scoring (server-side)**
+- [x] **Issue 4 — Radar flow-vs-level scoring (server-side)**
   - Outcome: a server balance endpoint returns per-pillar period scores —
     **flow** pillars (Input/Output/Audience/Financial) normalized 0–100 vs that
     pillar's trailing rolling max (default 8 periods, tunable); **Energy** scored
@@ -123,9 +123,7 @@ renders on the radar end-to-end.* Issue 1 proves it.
 
 ## Now
 
-- Implement Issue 4 (radar flow-vs-level scoring, server-side) test-first.
-  ⚠️ This is the one issue that changes existing Input/Output/Financial radar
-  behavior — run impact analysis on `Cockpit.tsx` scoring first.
+- Implement Issue 5 (connection seam: env CORS + `VITE_API_BASE`) test-first.
 
 ## Decisions log
 
@@ -169,3 +167,15 @@ renders on the radar end-to-end.* Issue 1 proves it.
   `0011_github_social_snapshots.sql`. Scope trims (noted, not built): account
   followers as an Audience signal, and a Settings "Sync audience" button +
   auto-sync hook — deferred; the endpoint runs the slice end-to-end for now.
+- 2026-06-01: Issue 4 green. Replaced the client-side radar math (all-time,
+  cross-pillar) with server-side `balance-service.computePillarBalance` +
+  `GET /api/balance`: flow pillars (Input/Output/Audience/Financial) normalize
+  the current week's impact vs that pillar's trailing 8-week max; Energy scores
+  as the period mean rating mapped 1–5 → 0–100. Cockpit now consumes the
+  endpoint (radar + balance bars + energy pulse). Verified: server suite 108
+  tests green (4 service + 1 route) + full build green. DEVIATION from spec:
+  "Financial signed net (rev − spend)" does not apply — agent-cost spend lives
+  in its own tables, not the `events` table, so the FINANCIAL radar axis = the
+  positive revenue signal only; spend stays in the Review summary. Noted smell:
+  the Monday week-start math now exists in `reviews.ts`, `reviews.test.ts`, and
+  `balance-service.ts` — extract a shared `week` util in a later gardener pass.

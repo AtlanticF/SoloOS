@@ -1,5 +1,5 @@
 import type {
-  Entry, Event, Project, Review, Insight, CaptureResult, AgentConfig, AgentConfigInput, Pillar,
+  Entry, Event, Project, Review, PillarSnapshot, Insight, CaptureResult, AgentConfig, AgentConfigInput, Pillar,
   OutputEvent, OutputSummary, OutputEventsPage, RepoBinding, RepoSyncState,
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
   Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
@@ -64,6 +64,9 @@ export const api = {
   },
   projects: {
     list: () => get<Project[]>('/projects'),
+  },
+  balance: {
+    get: () => get<PillarSnapshot[]>('/balance'),
   },
   reviews: {
     current: () => get<Review>('/reviews/current'),
@@ -188,6 +191,7 @@ export const queryKeys = {
   events: (params?: object) => ['events', params] as const,
   projects: () => ['projects'] as const,
   reviewCurrent: () => ['reviews', 'current'] as const,
+  balance: () => ['balance'] as const,
   insights: (params?: object) => ['insights', params] as const,
   agentConfig: () => ['agent-config'] as const,
   agentHealth: () => ['agent-health'] as const,
