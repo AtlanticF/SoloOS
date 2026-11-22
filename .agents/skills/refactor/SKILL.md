@@ -1,6 +1,6 @@
 ---
-name: "refactor"
-description: "The recovery code-quality constraint (Refactoring). Use to improve code structure without changing behavior \u2014 smell \u2192 named refactoring, always under green tests, one move at a time. Used by the generator (in the tdd refactor step) and the gardener (entropy cleanup)."
+name: refactor
+description: The recovery code-quality constraint (Refactoring). Use to improve code structure without changing behavior — smell → named refactoring, always under green tests, one move at a time. Used by the generator (in the tdd refactor step) and the gardener (entropy cleanup).
 ---
 
 Refactoring = changing structure **without changing behavior**. The tests are
@@ -29,4 +29,4 @@ the proof behavior didn't change.
 - Gardener: continuous small installments (golden principle #7) — scan for
   smells, open targeted, green, one-move PRs. Pay debt before it compounds.
 
-Trace: `bin/trace.sh <agent> <stage> refactor move=<name>`.
+Trace: `"$HOME/.harness-mini/bin/trace.sh" <agent> <stage> refactor move=<name>`.

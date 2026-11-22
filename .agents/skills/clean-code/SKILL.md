@@ -1,6 +1,6 @@
 ---
-name: "clean-code"
-description: "The forward code-quality constraint (Clean Code). Use while writing code in the implement stage and as a review lens in evaluate. Intention-revealing names, small single-responsibility functions, no duplication, comments that explain why not what."
+name: clean-code
+description: The forward code-quality constraint (Clean Code). Use while writing code in the implement stage and as a review lens in evaluate. Intention-revealing names, small single-responsibility functions, no duplication, comments that explain why not what.
 ---
 
 Write it right the first time. This is the *forward* constraint; `refactor` is

@@ -2,78 +2,200 @@
 
 Top-level map of how harness-mini is laid out and how work flows through it.
 
-## Repository layout
+## Lifecycle at a glance
+
+Every requirement is a plan file riding this state machine — **only the main
+agent (via `stage-viewer`) advances a state; sub-agents never do.**
 
 ```
-AGENTS.md              # ~100-line map injected every run (table of contents)
-ARCHITECTURE.md        # this file
-VERSION                # canonical version (SemVer); bumped by `harness.sh release`
+  start ── init.sh seeds the first plan: 0001-intake (new) · 0001-recon (existing)
+         │
+         ▼
+   ┌────────────┐  exit: founder-check done (new) · recon done (existing)
+   │   intake   │
+   └────────────┘
+         │  to-prd → stress-test it with grill-me
+         ▼
+   ┌────────────┐  exit: PRD written and grilled
+   │    prd     │
+   └────────────┘
+         │  to-issues → atomic, testable work units
+         ▼
+   ┌────────────┐  exit: atomic, testable issues exist
+   │   issues   │  (the plan-stage write ban lifts here)
+   └────────────┘
+         │  implement → one vertical slice (tdd · slice-coding)
+         ▼
+   ┌────────────┐  exit: slice green → hand to the evaluator
+   │ implement  │◀┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┐
+   └────────────┘                               ┆
+         │  evaluate (separate window)          ┆ criteria fail
+         ▼                                      ┆ → rework loop
+   ┌────────────┐  verdict: pass                ┆
+   │  evaluate  │┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘
+   └────────────┘
+         │  checkpoint → committed handoff
+         ▼
+   ┌────────────┐
+   │ checkpoint │  gate: verdict: pass in .harness-mini/trace/evals/ (doctor enforces)
+   └────────────┘
+         │  archive → .harness-mini/docs/exec-plans/completed/
+         ▼
+   ┌────────────┐
+   │    done    │
+   └────────────┘
+
+  garden ⟳ runs orthogonal to every state — fires on triggers (≥5 checkpoints ·
+  a plan completing · pre-release · smell backlog) and never blocks the loop
+```
+
+- **quick mode:** a trivial, unambiguous fix (≤ ~1 slice) may jump straight to
+  `implement` — the ceremony scales with risk, not habit.
+- **solid arrows** advance only when the exit condition holds; the **dashed**
+  loop is the implement ⇄ evaluate rework cycle until criteria pass.
+
+## Two file classes
+
+Zero-intrusion install: harness-mini never spreads its own files through a
+project. Every file belongs to exactly one class.
+
+| Class | Lives in | Examples |
+|-------|----------|----------|
+| **Harness-owned**, independent of project progress | `$HARNESS_HOME` (default `~/.harness-mini/`), per project under `$HARNESS_HOME/projects/<project-id>/` | executables, the map, static docs, skill/agent sources, lock, manifest |
+| **Project progress**, must be recorded with the project | `<project>/.harness-mini/` (committed, except `trace/runtime/`) | plans, checkpoints, evals, garden backlog, project architecture |
+
+Besides `.harness-mini/`, an install writes only a `<!-- harness-mini:begin/end -->`
+block in the project's root `AGENTS.md`, local `.git/info/exclude` lines, and —
+after `harness.sh agent install <host>` — that host's skills/agents dirs. The
+project's own `.gitignore`, `ARCHITECTURE.md` and `CLAUDE.md` are never touched.
+
+### Project layout (`<project>/.harness-mini/`)
+
+```
+.harness-mini/
+  .gitignore           # ignores trace/runtime/ (the project .gitignore stays untouched)
+  architecture.md      # this project's recon output (the explorer fills it)
+  docs/
+    exec-plans/
+      active/          # in-flight plans: <NNN-slug>.md + .json twin (committed)
+      completed/       # archived plans (committed)
+  trace/
+    checkpoints/       # COMMITTED — decisions, milestones, handoffs
+    evals/             # COMMITTED — <plan>-NNN.md verdicts (the done-gate)
+    garden-backlog.md  # COMMITTED — smell backlog
+    runtime/           # GITIGNORED — ephemeral per-run JSONL (report reads these)
+```
+
+### Runtime layout (`$HARNESS_HOME`, default `~/.harness-mini/`)
+
+```
+bin/                   # executables (harness.sh, trace.sh, ctx.sh, ...)
+VERSION
+harness/runtime.lock   # version + checksums of bin/*
+AGENTS.md              # the full agent map (the project block points here)
+docs/                  # static docs: principles, smart-dumb, assumptions, ARCHITECTURE.md,
+                       #   templates/, walkthrough, getting-started, examples/
+skills/  agents/       # sources that `agent install <host>` copies from
+projects/<project-id>/ # per-project bookkeeping
+  harness.lock         # version + pristine checksums of installed skills/agents
+  manifest.md          # pointer list of what an agent install placed
+  targets              # one row per installed host (skills dir, agents dir, format)
+```
+
+**project-id** = `<project-name>-<8 chars [0-9a-z]>`: the name is the lowercase,
+hyphenated basename of the project; the 8 chars are base-36 of
+`sha256(absolute symlink-resolved path)`. Moving a project changes its id
+(documented trade-off). Implemented by `project_id` in `bin/_harness_lib.sh`.
+A 0.13.0 state dir sitting flat at the top of `$HARNESS_HOME` is moved into `projects/` automatically
+(`migrate_state_dir`: `init.sh` and every `harness.sh` command; never a runtime
+dir, never over an existing `projects/<project-id>/`).
+
+**Hosts.** Which skills/agents dir each coding-agent host reads is a single table,
+`host_row` in `bin/_harness_lib.sh`; `harness.sh agent list` prints it and
+`agent install <host>` acts on it (unknown hosts get self-install instructions).
+Hosts that read `.agents/skills` natively share one copy.
+
+## Repository layout (the source repo)
+
+The source repo dogfoods the project layout above: its own plans and trace live
+in `.harness-mini/`, while `docs/` is distribution source only.
+
+```
+AGENTS.md              # the agent map (installed to $HARNESS_HOME/AGENTS.md)
+ARCHITECTURE.md        # this file (installed to $HARNESS_HOME/docs/ARCHITECTURE.md)
+VERSION                # canonical version (SemVer); bumped by the release command
 CHANGELOG.md           # Keep-a-Changelog; rolled on release
 init.sh                # additive, idempotent installer (new vs existing)
-bin/
-  harness.sh           # front-door CLI: version·update·doctor·status·release
-  _harness_lib.sh      # shared helpers: managed-set, checksums, lockfile
+bin/                   # runtime script sources; installed under $HARNESS_HOME/bin/
+  harness.sh           # front-door CLI: version·update·doctor·status·agent·release
+  _harness_lib.sh      # shared helpers: layout resolver, host table, managed-set, lock
   ctx.sh               # context % estimate vs the 40% threshold
+  ctx-hook.sh          # opt-in PostToolUse hook (ctx estimate + auto last-green)
   trace.sh             # append runtime JSONL (best-effort, never blocks)
   ralph.sh             # ralph-loop driver (work → check → repeat)
+  model.sh             # resolve role model tiers
+  session.sh           # fresh-context session playbook runner
 skills/                # one folder per skill: <name>/SKILL.md (required;
                        #   metadata in frontmatter) + optional scripts/
                        #   references/ assets/ examples/ tests/.
-                       #   Installed (recursively) to .claude/skills/<name>/
-agents/                # sub-agents, flat <name>.md → installed to .claude/agents/
-docs/
-  principles.md        # golden principles + Five-Step core-mind
-  smart-dumb.md        # the 40% occupancy contract
-  exec-plans/
-    active/            # in-flight plans + decision logs (committed)
-    completed/         # archived plans (committed)
-  references/          # *-llms.txt distillates of the source blogs
-tests/run.sh           # zero-dep TDD suite for bin/* and init.sh
-harness/
-  manifest.md          # neutral pointer list for non-Claude CLIs
-  harness.lock         # installed version + pristine checksums of managed files
-.trace/
-  checkpoints/         # COMMITTED — decisions, milestones, handoffs
-  runtime/             # GITIGNORED — ephemeral per-run JSONL
+                       #   Installed (recursively) to the host's skills dir
+  checkpoint/scripts/  # checkpoint-only lint, snapshot, and guard helpers
+  session-coding/scripts/  # session-coding first-turn bearings report
+agents/                # role descriptions → installed to the host's agents dir
+docs/                  # DISTRIBUTION SOURCE → $HARNESS_HOME/docs/ (never into a project)
+  principles.md  smart-dumb.md  assumptions.md  walkthrough.md  *-getting-started.md
+  templates/  examples/
+references/            # *-llms.txt distillates of the source blogs (source repo only)
+assets/                # README banner etc. (source repo only)
+  # references/ and assets/ are never installed, locked, or listed in a manifest
+.harness-mini/         # this repo's own plans + trace (dogfood)
+tests/run.sh           # zero-dep TDD suite for bin/*, skill scripts, and init.sh
 ```
 
 ## Versioning & update model
 
-An install is a snapshot of the **managed set** — the files harness-mini owns
-(`bin/*`, `.claude/skills/**` recursively, `.claude/agents/*`,
-`docs/principles.md`, `docs/smart-dumb.md`, `docs/references/*`, `AGENTS.md`,
-`ARCHITECTURE.md`). The set is defined once, in `emit_managed_pairs()`
-(`bin/_harness_lib.sh`) — which recurses `skills/` so every file under a skill
-folder is tracked — and is the
-single boundary between "harness territory" and "user territory" (your
-exec-plans, `.trace/`, and project code are never in it).
+An install has two independent managed sets. The **project set** is only the
+skills and role files an `agent install` placed in the host's dirs; the
+**runtime set** is the executable `bin/*` sources under `$HARNESS_HOME/bin/`. The
+project set is defined in `emit_managed_pairs()` (`bin/_harness_lib.sh`) and
+recorded in `$HARNESS_HOME/projects/<project-id>/harness.lock`; runtime checksums are in
+`$HARNESS_HOME/harness/runtime.lock`. The global copies (map, docs, skill/agent
+sources) have their own `harness/global.lock`. Project plans, `.harness-mini/`,
+and application files are not managed.
 
-`init.sh` writes `harness/harness.lock` recording the version and the **pristine
-upstream checksum** of each managed file. `harness.sh update` diffs three states
-per file — `base` (lock baseline), `cur` (on disk), `new` (upstream) — to decide
-ADD / UNCHANGED / UPDATE / CONFLICT, so a newer harness can be pulled in without
-ever clobbering a file you edited. `harness.sh release` is the inverse end: it
-stamps a new `VERSION`, rolls `CHANGELOG.md`, tags `v<x.y.z>`, and publishes a
-GitHub release (gated on green tests + a clean tree).
+`init.sh` writes both locks with the **pristine upstream checksum** of each
+managed file. `"$HOME/.harness-mini/bin/harness.sh" update` diffs `base` (lock
+baseline), `cur` (on disk), and `new` (upstream) independently for runtime and
+project files. It preserves edited files and writes upstream conflicts to
+`.new` (`harness.sh diff <file>` compares your copy with it). `update` never
+downgrades the runtime unless `--force`. `update` also refreshes the global copies and first migrates a pre-0.13
+project layout (data moves into `.harness-mini/`; legacy harness files are removed
+only when their old-lock checksum matches). From this source repository, the release command stamps `VERSION`, rolls
+`CHANGELOG.md`, tags `v<x.y.z>`, and publishes a GitHub release (gated on green
+tests + a clean tree).
 
 ## Lifecycle FSM
 
-```
-intake → prd → issues → implement ⇄ evaluate → checkpoint → done
-                           ↑___________|   (loop until criteria pass)
-       garden ──── runs orthogonally, on triggers ────
-```
+_(The full diagram with per-state exit conditions is at the top:
+[Lifecycle at a glance](#lifecycle-at-a-glance).)_
 
-- State lives in each `docs/exec-plans/active/<plan>.md` frontmatter (`stage:`).
+- State lives in each `.harness-mini/docs/exec-plans/active/<plan>.md` frontmatter (`stage:`).
+- **Plan-stage write ban:** while `stage` ∈ {intake, prd, issues}, no product-code
+  edits (convention in `stage-viewer`; Mini has no permission engine).
 - **Transition authority (mode C):** agents work freely *within* a stage, but
   only the **main agent** (via `stage-viewer`) advances the FSM. No sub-agent
   may mark its own output "done" — the evaluator gate plus main-agent control
   is the anti-self-praise firewall extended across the whole lifecycle.
+- **The firewall has teeth:** promoting a plan to `done` requires a committed
+  `verdict: pass` record at `.harness-mini/trace/evals/<plan>-NNN.md`; `harness.sh doctor`
+  FAILs a done plan that lacks one. `harness.sh report` aggregates these verdicts
+  (+ the runtime ctx trend) so the loop is measured, not asserted.
 - **Garden triggers (orthogonal):** gardening fires on concrete signals, not
   "periodically" — **≥5 checkpoints** since the last sweep, a plan completing, a
-  pending release, or the **smell backlog** (`.trace/garden-backlog.md`) crossing
+  pending release, or the **smell backlog** (`.harness-mini/trace/garden-backlog.md`) crossing
   its threshold (any `high` / ≥3 open). `harness.sh status` prints `garden:
-  DUE|ok`; the main agent dispatches the gardener. See the `garden` skill.
+  DUE|ok` and a final `ready: <ready|warning|blocked> — <next>` verdict; the
+  main agent dispatches the gardener. See the `garden` skill.
 
 ## Coding contract: horizontal + vertical (`slice-coding`)
 
@@ -103,46 +225,7 @@ intake → prd → issues → implement ⇄ evaluate → checkpoint → done
 ## New vs existing project (set by `init.sh`)
 
 - **new** → generative bootstrap: seed `0001-intake.md`, run the founder funnel
-  (founder-check → five-step → to-prd → to-issues).
+  (founder-check → to-prd → to-issues).
 - **existing** → recon graft: seed `0001-recon.md`, the explorer maps the
-  codebase into this file's "Domains & layers" section below; skip the founder
+  codebase into `.harness-mini/architecture.md` ("Domains & layers"); skip the founder
   funnel; install additively without overwriting anything.
-
-## Domains & layers
-
-> Recon of the **SoloOS product** (the application this harness was grafted onto).
-> Filled 2026-06-03 from the live codebase (117 server tests green; shared+server
-> `tsc` clean). SoloOS is a pnpm monorepo; harness-mini lives alongside it in the
-> same repo (`bin/`, `skills/`, `docs/exec-plans/` are harness territory, not the
-> product).
-
-**Entry points**
-- API server — `apps/server/src/index.ts` (HTTP API; `pnpm dev` → :3000, `pnpm serve` → :5010; CORS allowlist at `index.ts:33`, env `SOLOOS_ALLOWED_ORIGINS`).
-- CLI — `apps/server/bin/solo.ts` (`solo capture [content] --pillar …`, `solo energy <1-5>`).
-- Web — `apps/web/src/main.tsx` → `App.tsx`; Vite dev :5173 proxies `/api` + `/webhooks` → :3000. Client API base at `apps/web/src/lib/api.ts:12` (`VITE_API_BASE ?? '/api'`).
-- Data — SQLite at `~/.soloos/soloos.db`, created + migrated on boot.
-
-**Commands**
-- Test: `pnpm test` (= `pnpm --filter server test` = Vitest). Build: `pnpm build` (shared → server → web). Dev: `pnpm dev` (root only). Seed: `pnpm --filter server db:seed`.
-- Lint / typecheck: **no separate lint script**; typecheck is `tsc` via `pnpm build` (`apps/server` + `packages/shared` use `tsc`, `apps/web` builds via Vite).
-
-**Main domains** (`apps/server/src/`): `input` · `output` · `audience` · `agent-cost` (Financial) · `balance` (five-axis radar) · `associations` (entry↔event↔project) · `classifiers` (auto-pillar rules) · `agent` · `github` + `webhooks` (commit/social ingest) · `reviews` (the Review Gate) · `config` (cors/port) · `db`.
-
-**Layer structure in use** (matches the `slice-coding` reference stack):
-```
-Types (packages/shared/src/types/*) → Config (server/src/config)
-  → Repo (server/src/db: schema.ts, index.ts, hand-written migrations)
-  → Service (server/src/<domain>/<domain>-service.ts)
-  → Runtime (server/src/routes/*.ts + index.ts; CLI bin/solo.ts)
-  → UI (apps/web/src/pages: Cockpit · Explorer · Output · Review · Settings)
-```
-
-**Where product behaviour lives** — domain logic in `apps/server/src/<domain>/*-service.ts`; HTTP surface in `apps/server/src/routes/*.ts`; shared contracts in `packages/shared/src/types/*`; the five product screens in `apps/web/src/pages/*`.
-
-**Where tests live** — colocated `*.test.ts` beside the source in `apps/server/src/**` (Vitest). No web test suite.
-
-**Risky dirs / files** — `apps/server/src/db/schema.ts` + migrations: **hand-write migration SQL + journal entry**, `drizzle-kit generate` is destructive here (see [[soloos-drizzle-migrations-handwritten]]). Secret handling in `agent-cost` provider configs (masked, never sent to frontend).
-
-**Generated / vendor (do not edit)** — `node_modules/`, `dist/` (`packages/shared/dist`, `apps/server/dist`, `apps/web/dist`), and the **compiled `.js` committed next to each `.tsx`/`.ts` in `apps/web/src`** (a build artifact convention; edit the `.tsx`/`.ts`).
-
-**First vertical slice** — already built and proven: the spine **`solo capture` → classified Event (project + pillar) → Cockpit radar → weekly Review Gate**. New work attaches to this loop (see `docs/product-spine.md`).
