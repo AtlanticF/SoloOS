@@ -33,6 +33,15 @@ export interface OutputSummary {
   last_synced_at: number | null
 }
 
+export interface ProjectEconomics {
+  project_id: string
+  project_name: string
+  realized_revenue: string
+  output_allocated_cost: string
+  agent_cost: string
+  margin: string
+}
+
 export type SyncStatusValue = 'idle' | 'running' | 'deferred_rate_limited' | 'failed' | 'success'
 
 export interface RepoSyncState {

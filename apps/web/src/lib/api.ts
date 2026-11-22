@@ -1,11 +1,17 @@
 import type {
-  Entry, Event, Project, Review, Insight, CaptureResult, AgentConfig, AgentConfigInput, Pillar,
+  Entry, Event, Project, Review, PillarSnapshot, Insight, CaptureResult, AgentConfig, AgentConfigInput, Pillar,
   OutputEvent, OutputSummary, OutputEventsPage, RepoBinding, RepoSyncState,
   TriggerSyncResponse, UpsertRepoBindingRequest, OutputLifecycleState, GithubConfig, GithubRepo,
-  Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse,
+  Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostDecision, ProjectEconomics,
+  AgentCostProvider, OfficialAgentCostProvider, AgentCostProviderConfig, UpsertAgentCostProviderConfigRequest,
+  AgentCostProviderTestResult, OfficialAgentCostSyncRequest, AgentCostSyncResult,
+  AgentCostEventsPage, AssignAgentCostEventProjectRequest, AgentCostPersonalSubscription,
+  UpsertAgentCostPersonalSubscriptionRequest, LocalAgentCostConnector, PersonalSubscriptionAllocationResult,
 } from '@soloos/shared'
 
-const BASE = '/api'
+// Defaults to the same-origin Vite proxy (Mode 2, fully local). A hosted client
+// (Mode 1) sets VITE_API_BASE to the local server URL, e.g. http://localhost:3000/api.
+const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`)
@@ -61,10 +67,13 @@ export const api = {
   projects: {
     list: () => get<Project[]>('/projects'),
   },
+  balance: {
+    get: () => get<PillarSnapshot[]>('/balance'),
+  },
   reviews: {
     current: () => get<Review>('/reviews/current'),
-    complete: (id: string, reflection: string) =>
-      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection }),
+    complete: (id: string, reflection: string, energyRating: number, agentCostDecision?: AgentCostDecision) =>
+      post<{ ok: boolean }>(`/reviews/${id}/complete`, { reflection, energy_rating: energyRating, agent_cost_decision: agentCostDecision }),
   },
   insights: {
     list: (params?: { status?: string; type?: string }) => {
@@ -85,6 +94,7 @@ export const api = {
   },
   output: {
     summary: () => get<OutputSummary>('/output/summary'),
+    projectEconomics: () => get<ProjectEconomics[]>('/output/project-economics'),
     eventById: (eventId: string) => get<OutputEvent>(`/output/events/${eventId}`),
     events: (params?: { cursor?: string; limit?: number; repoId?: number; projectId?: string; state?: OutputLifecycleState }) => {
       const q = new URLSearchParams(
@@ -114,6 +124,42 @@ export const api = {
     delete: () => del<{ ok: boolean }>('/github-config'),
     test: () => post<{ ok: boolean; login?: string; scopes?: string; error?: string }>('/github-config/test', {}),
     repos: () => get<{ repos: GithubRepo[] }>('/github-config/repos'),
+  },
+  agentCost: {
+    providers: () => get<AgentCostProviderConfig[]>('/agent-cost/providers'),
+    personalSubscriptions: () => get<AgentCostPersonalSubscription[]>('/agent-cost/personal-subscriptions'),
+    savePersonalSubscription: (body: UpsertAgentCostPersonalSubscriptionRequest) =>
+      post<AgentCostPersonalSubscription>('/agent-cost/personal-subscriptions', body),
+    updatePersonalSubscription: (id: string, body: UpsertAgentCostPersonalSubscriptionRequest) =>
+      put<AgentCostPersonalSubscription>(`/agent-cost/personal-subscriptions/${id}`, body),
+    disablePersonalSubscription: (id: string) =>
+      post<AgentCostPersonalSubscription>(`/agent-cost/personal-subscriptions/${id}/disable`, {}),
+    deletePersonalSubscription: (id: string) =>
+      del<{ ok: boolean }>(`/agent-cost/personal-subscriptions/${id}`),
+    personalConnectors: () => get<LocalAgentCostConnector[]>('/agent-cost/personal-connectors'),
+    allocatePersonalActivity: (dayStart: number) =>
+      post<PersonalSubscriptionAllocationResult>('/agent-cost/personal-activity/allocate', { day_start: dayStart }),
+    saveProvider: (provider: OfficialAgentCostProvider, body: UpsertAgentCostProviderConfigRequest) =>
+      put<AgentCostProviderConfig>(`/agent-cost/providers/${provider}`, body),
+    deleteProvider: (provider: OfficialAgentCostProvider) =>
+      del<{ ok: boolean }>(`/agent-cost/providers/${provider}`),
+    testProvider: (provider: OfficialAgentCostProvider) =>
+      post<AgentCostProviderTestResult>(`/agent-cost/providers/${provider}/test`, {}),
+    syncProvider: (provider: OfficialAgentCostProvider, body: OfficialAgentCostSyncRequest) =>
+      post<AgentCostSyncResult>(`/agent-cost/providers/${provider}/sync`, body),
+    events: (params?: { assignment?: 'unassigned'; limit?: number }) => {
+      const q = new URLSearchParams(
+        Object.fromEntries(
+          Object.entries({
+            assignment: params?.assignment,
+            limit: params?.limit?.toString(),
+          }).filter(([, v]) => v !== undefined)
+        ) as Record<string, string>
+      ).toString()
+      return get<AgentCostEventsPage>(`/agent-cost/events${q ? `?${q}` : ''}`)
+    },
+    assignProject: (eventId: string, body: AssignAgentCostEventProjectRequest) =>
+      put<AgentCostEventsPage['items'][number]>(`/agent-cost/events/${eventId}/project`, body),
   },
   associations: {
     list: (params: { project_id: string; status?: string; cursor?: string; limit?: number }) => {
@@ -147,16 +193,22 @@ export const queryKeys = {
   events: (params?: object) => ['events', params] as const,
   projects: () => ['projects'] as const,
   reviewCurrent: () => ['reviews', 'current'] as const,
+  balance: () => ['balance'] as const,
   insights: (params?: object) => ['insights', params] as const,
   agentConfig: () => ['agent-config'] as const,
   agentHealth: () => ['agent-health'] as const,
   outputSummary: () => ['output', 'summary'] as const,
+  projectEconomics: () => ['output', 'project-economics'] as const,
   outputEvents: (params?: object) => ['output', 'events', params] as const,
   outputSyncStatus: () => ['output', 'sync-status'] as const,
   outputBindings: () => ['output', 'repo-bindings'] as const,
   githubConfig: () => ['github-config'] as const,
   githubRepos: () => ['github-config', 'repos'] as const,
+  agentCostProviders: () => ['agent-cost', 'providers'] as const,
+  agentCostPersonalSubscriptions: () => ['agent-cost', 'personal-subscriptions'] as const,
+  agentCostPersonalConnectors: () => ['agent-cost', 'personal-connectors'] as const,
+  agentCostEvents: (params?: object) => ['agent-cost', 'events', params] as const,
   associations: (params?: object) => ['associations', params] as const,
 }
 
-export type { OutputLifecycleState, OutputEvent, OutputSummary, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse }
+export type { OutputLifecycleState, OutputEvent, OutputSummary, ProjectEconomics, RepoBinding, RepoSyncState, GithubConfig, GithubRepo, Association, AssociationsPage, BatchReviewRequest, BatchReviewResponse, AgentCostProvider, AgentCostProviderConfig, AgentCostEventsPage, AgentCostSyncResult }

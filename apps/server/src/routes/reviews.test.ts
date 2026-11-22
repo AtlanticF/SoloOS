@@ -33,7 +33,7 @@ describe('GET /api/reviews/current', () => {
     const res2 = await app.request(`/api/reviews/${review.id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reflection: 'Good week, shipped pricing feature' }),
+      body: JSON.stringify({ reflection: 'Good week, shipped pricing feature', energy_rating: 4 }),
     })
     expect(res2.status).toBe(200)
 
@@ -41,4 +41,144 @@ describe('GET /api/reviews/current', () => {
     const updated = await res3.json() as { completed_at: number | null }
     expect(updated.completed_at).not.toBeNull()
   })
+
+  it('rejects completion without an energy rating', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.' }),
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('energy') })
+  })
+
+  it('records the energy rating as an ENERGY event on completion', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.', energy_rating: 4 }),
+    })
+    expect(res.status).toBe(200)
+
+    const events = await (await app.request('/api/events?pillar=ENERGY')).json()
+    expect(events).toHaveLength(1)
+    expect(events[0].impact_score).toBe(4)
+  })
+
+  it('rejects an energy rating outside 1 to 5', async () => {
+    const review = await (await app.request('/api/reviews/current')).json() as { id: string }
+    const res = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'A reflection long enough to pass the gate.', energy_rating: 9 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('requires an agent cost decision when current review has non-zero agent cost', async () => {
+    const { start, end } = currentWeekBounds()
+    await app.request('/api/agent-cost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'manual',
+        amount: '8.00',
+        currency: 'usd',
+        usage_start: start,
+        usage_end: end,
+        tool_label: 'codex',
+      }),
+    })
+
+    const currentRes = await app.request('/api/reviews/current')
+    const review = await currentRes.json() as { id: string }
+    const missingDecision = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reflection: 'Good week, but agent spend needs an explicit product decision.', energy_rating: 4 }),
+    })
+    expect(missingDecision.status).toBe(400)
+    expect(await missingDecision.json()).toMatchObject({ error: 'agent_cost_decision is required' })
+
+    const validDecision = await app.request(`/api/reviews/${review.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reflection: 'Good week, but agent spend needs an explicit product decision.',
+        energy_rating: 4,
+        agent_cost_decision: 'pause',
+      }),
+    })
+    expect(validDecision.status).toBe(200)
+  })
+
+  it('includes manual agent cost totals for the current week', async () => {
+    const projectRes = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Costed Project' }),
+    })
+    const project = await projectRes.json()
+    const { start, end } = currentWeekBounds()
+
+    await app.request('/api/agent-cost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'manual',
+        amount: '12.50',
+        currency: 'usd',
+        usage_start: start,
+        usage_end: end,
+        project_id: project.id,
+        tool_label: 'codex',
+      }),
+    })
+    await app.request('/api/agent-cost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'manual',
+        amount: '7.25',
+        currency: 'usd',
+        usage_start: start,
+        usage_end: end,
+        tool_label: 'claude-code',
+      }),
+    })
+
+    const res = await app.request('/api/reviews/current')
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.agent_cost_summary).toMatchObject({
+      currency: 'USD',
+      total_amount: '19.75',
+      assigned_amount: '12.50',
+      unassigned_amount: '7.25',
+      official_api_amount: '0.00',
+      personal_subscription_allocated_amount: '0.00',
+      personal_subscription_unallocated_amount: '0.00',
+    })
+    expect(body.agent_cost_summary.project_costs).toEqual([
+      { project_id: project.id, amount: '12.50', currency: 'USD' },
+    ])
+  })
 })
+
+function currentWeekBounds(now = Date.now()): { start: number; end: number } {
+  const d = new Date(now)
+  const day = d.getUTCDay()
+  const monday = new Date(d)
+  monday.setUTCDate(d.getUTCDate() - ((day + 6) % 7))
+  monday.setUTCHours(0, 0, 0, 0)
+  const sunday = new Date(monday)
+  sunday.setUTCDate(monday.getUTCDate() + 6)
+  sunday.setUTCHours(23, 59, 59, 999)
+  return {
+    start: Math.floor(monday.getTime() / 1000),
+    end: Math.floor(sunday.getTime() / 1000),
+  }
+}

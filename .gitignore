@@ -50,3 +50,4 @@ Thumbs.db
 
 # GitNexus local index (regenerate with `npx gitnexus analyze`)
 .gitnexus
+.trace/runtime/

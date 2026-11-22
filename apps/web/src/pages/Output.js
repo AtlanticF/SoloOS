@@ -38,6 +38,10 @@ export function Output() {
         queryKey: queryKeys.projects(),
         queryFn: api.projects.list,
     });
+    const { data: projectEconomics = [] } = useQuery({
+        queryKey: queryKeys.projectEconomics(),
+        queryFn: api.output.projectEconomics,
+    });
     const { data: githubConfig } = useQuery({
         queryKey: queryKeys.githubConfig(),
         queryFn: api.githubConfig.get,
@@ -96,6 +100,13 @@ export function Output() {
         }
         return map;
     }, [cardEventsPage?.items, items]);
+    const economicsByProject = useMemo(() => {
+        const map = new Map();
+        for (const row of projectEconomics) {
+            map.set(row.project_id, row);
+        }
+        return map;
+    }, [projectEconomics]);
     const defaultSummary = summary ?? {
         counts: { DRAFT: 0, ACTIVE: 0, VALUATED: 0, GHOST: 0, ARCHIVED: 0 },
         totals: { allocated_cost: '0.00', realized_revenue: '0.00' },
@@ -123,6 +134,7 @@ export function Output() {
                         setBindingDialogOpen(true);
                     } }) })) : !inDetailView ? (_jsxs("div", { className: "flex flex-col gap-4", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsx("h2", { className: "text-sm font-semibold", style: { color: '#e4e4e7' }, children: t('output.projectsTitle') }), _jsx("button", { onClick: () => setRepoPickerOpen(true), className: "text-sm px-3 py-1.5 rounded-lg border transition-colors hover:border-zinc-600", style: { background: '#18181b', borderColor: '#27272a', color: '#e4e4e7' }, children: t('output.manageRepos') })] }), _jsx("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: bindings.map((binding) => {
                             const linkedProject = projects.find((p) => p.id === binding.project_id);
+                            const economics = binding.project_id ? economicsByProject.get(binding.project_id) : null;
                             const latest = latestEventByRepo.get(binding.repo_id);
                             return (_jsxs("button", { onClick: () => {
                                     setSelectedRepoCardId(binding.repo_id);
@@ -139,7 +151,7 @@ export function Output() {
                                                 e.stopPropagation();
                                                 setEditingBinding(binding);
                                                 setBindingDialogOpen(true);
-                                            }, className: "text-xs px-2.5 py-1.5 rounded-lg border transition-colors hover:border-zinc-500", style: { background: '#18181b', borderColor: '#27272a', color: '#a1a1aa' }, children: t('output.linkProjectQuick') }) })), latest ? (_jsxs(_Fragment, { children: [_jsx("div", { className: "text-sm line-clamp-1", style: { color: '#e4e4e7' }, children: latest.commit_message }), _jsxs("div", { className: "text-xs", style: { color: '#71717a' }, children: [new Date(latest.committed_at * 1000).toLocaleDateString(), " \u00B7 ", latest.author] })] })) : (_jsx("div", { className: "text-xs", style: { color: '#52525b' }, children: t('output.noCommits') }))] }, binding.id));
+                                            }, className: "text-xs px-2.5 py-1.5 rounded-lg border transition-colors hover:border-zinc-500", style: { background: '#18181b', borderColor: '#27272a', color: '#a1a1aa' }, children: t('output.linkProjectQuick') }) })), economics && (_jsxs("div", { className: "grid grid-cols-3 gap-2 rounded-md border p-2", style: { borderColor: '#27272a', background: '#18181b' }, children: [_jsx(EconomicsMetric, { label: t('output.agentCost'), value: `$${economics.agent_cost}`, tone: "muted" }), _jsx(EconomicsMetric, { label: t('output.outputCost'), value: `$${economics.output_allocated_cost}`, tone: "muted" }), _jsx(EconomicsMetric, { label: t('output.margin'), value: `$${economics.margin}`, tone: Number(economics.margin) < 0 ? 'negative' : 'positive' })] })), latest ? (_jsxs(_Fragment, { children: [_jsx("div", { className: "text-sm line-clamp-1", style: { color: '#e4e4e7' }, children: latest.commit_message }), _jsxs("div", { className: "text-xs", style: { color: '#71717a' }, children: [new Date(latest.committed_at * 1000).toLocaleDateString(), " \u00B7 ", latest.author] })] })) : (_jsx("div", { className: "text-xs", style: { color: '#52525b' }, children: t('output.noCommits') }))] }, binding.id));
                         }) })] })) : (_jsxs(_Fragment, { children: [_jsx("div", { className: "flex items-center gap-3", children: _jsxs("button", { onClick: () => {
                                 setSelectedRepoCardId(null);
                                 setSelectedRepoId(null);
@@ -157,6 +169,10 @@ export function Output() {
                                 setRepoPickerOpen(false);
                                 setBindingDialogOpen(true);
                             } }), _jsx("div", { className: "mt-3 flex justify-end", children: _jsx("button", { onClick: () => setRepoPickerOpen(false), className: "text-sm px-3 py-1.5 rounded-lg border transition-colors hover:border-zinc-600", style: { background: '#18181b', borderColor: '#27272a', color: '#a1a1aa' }, children: t('output.bindingDialog.cancel') }) })] }) })), _jsx(OutputEventDetailSheet, { item: selectedOutputEvent, eventDetail: selectedEventDetail ?? null, onClose: () => setSelectedOutputEvent(null), projectId: effectiveProjectId })] }));
+}
+function EconomicsMetric({ label, value, tone, }) {
+    const color = tone === 'positive' ? '#22c55e' : tone === 'negative' ? '#f87171' : '#a1a1aa';
+    return (_jsxs("div", { className: "min-w-0", children: [_jsx("div", { className: "truncate text-[11px]", style: { color: '#71717a' }, children: label }), _jsx("div", { className: "truncate font-mono text-xs tabular-nums", style: { color }, children: value })] }));
 }
 function OutputEventDetailSheet({ item, eventDetail, onClose, projectId, }) {
     const { t } = useTranslation();

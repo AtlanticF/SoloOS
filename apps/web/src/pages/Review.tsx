@@ -2,12 +2,18 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { AgentCostSummaryPanel } from '@/components/review/AgentCostSummaryPanel'
 import { api, queryKeys } from '@/lib/api'
 import { formatTs } from '@/lib/utils'
+import type { AgentCostDecision } from '@soloos/shared'
+
+const AGENT_COST_DECISIONS: AgentCostDecision[] = ['continue', 'pause', 'kill', 'double_down']
 
 export function Review() {
   const { t } = useTranslation()
   const [reflection, setReflection] = useState('')
+  const [energyRating, setEnergyRating] = useState<number | undefined>()
+  const [agentCostDecision, setAgentCostDecision] = useState<AgentCostDecision | undefined>()
   const qc = useQueryClient()
 
   const { data: review, isLoading } = useQuery({
@@ -16,10 +22,12 @@ export function Review() {
   })
 
   const complete = useMutation({
-    mutationFn: () => api.reviews.complete(review!.id, reflection),
+    mutationFn: () => api.reviews.complete(review!.id, reflection, energyRating!, requiresAgentCostDecision ? agentCostDecision : undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.reviewCurrent() })
       setReflection('')
+      setEnergyRating(undefined)
+      setAgentCostDecision(undefined)
     },
   })
 
@@ -27,6 +35,7 @@ export function Review() {
   if (!review) return null
 
   const isCompleted = !!review.completed_at
+  const requiresAgentCostDecision = Number(review.agent_cost_summary.total_amount) > 0
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
@@ -38,6 +47,8 @@ export function Review() {
           {t('review.period', { start: formatTs(review.period_start), end: formatTs(review.period_end) })}
         </p>
       </div>
+
+      <AgentCostSummaryPanel summary={review.agent_cost_summary} />
 
       {isCompleted ? (
         <div className="rounded-xl p-4" style={{ background: '#111', border: '1px solid #1e1e22' }}>
@@ -57,8 +68,50 @@ export function Review() {
             value={reflection}
             onChange={e => setReflection(e.target.value)}
           />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#71717a' }}>
+              {t('review.energyLabel')}
+            </span>
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  className="h-9 rounded-md border text-xs font-semibold transition-colors"
+                  style={{
+                    background: energyRating === value ? 'rgba(139,92,246,0.12)' : '#18181b',
+                    borderColor: energyRating === value ? '#8b5cf6' : '#27272a',
+                    color: energyRating === value ? '#8b5cf6' : '#a1a1aa',
+                  }}
+                  onClick={() => setEnergyRating(value)}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: '#3f3f46' }}>{t('review.energyHint')}</p>
+          </div>
+          {requiresAgentCostDecision && (
+            <div className="grid grid-cols-2 gap-2">
+              {AGENT_COST_DECISIONS.map(decision => (
+                <button
+                  key={decision}
+                  type="button"
+                  className="h-9 rounded-md border px-3 text-xs font-medium transition-colors"
+                  style={{
+                    background: agentCostDecision === decision ? '#e4e4e7' : '#18181b',
+                    borderColor: agentCostDecision === decision ? '#e4e4e7' : '#27272a',
+                    color: agentCostDecision === decision ? '#18181b' : '#a1a1aa',
+                  }}
+                  onClick={() => setAgentCostDecision(decision)}
+                >
+                  {t(`review.agentCostDecision.${decision}`)}
+                </button>
+              ))}
+            </div>
+          )}
           <Button
-            disabled={reflection.trim().length < 20 || complete.isPending}
+            disabled={reflection.trim().length < 20 || !energyRating || (requiresAgentCostDecision && !agentCostDecision) || complete.isPending}
             onClick={() => complete.mutate()}
           >
             {complete.isPending ? t('review.saving') : t('review.submit')}

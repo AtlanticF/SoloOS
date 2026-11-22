@@ -25,7 +25,7 @@ export function entriesRouter(db: DB) {
   })
 
   app.post('/', async (c) => {
-    let body: { content?: string; source?: EntrySource; pillar?: Pillar; quick_tags?: string[] }
+    let body: { content?: string; source?: EntrySource; pillar?: Pillar; quick_tags?: string[]; impact_score?: number }
     try {
       body = await c.req.json()
     } catch {
@@ -37,6 +37,16 @@ export function entriesRouter(db: DB) {
     if (body.pillar && !VALID_PILLARS.includes(body.pillar)) {
       return c.json({ error: 'invalid pillar' }, 400)
     }
+    // An explicit energy reading must carry a rating from 1 to 5 (it is a level,
+    // not an activity tag), so `solo energy <n>` records a meaningful value.
+    if (body.pillar === 'ENERGY') {
+      const rating = body.impact_score
+      if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return c.json({ error: 'energy rating must be an integer from 1 to 5' }, 400)
+      }
+    }
+    const impactScore =
+      Number.isInteger(body.impact_score) && (body.impact_score as number) >= 1 ? (body.impact_score as number) : 1
     const now = Math.floor(Date.now() / 1000)
     const source = body.source ?? 'cli'
 
@@ -71,7 +81,7 @@ export function entriesRouter(db: DB) {
         title: fallbackTitle,
         pillar,
         project_id: null,
-        impact_score: 1,
+        impact_score: impactScore,
         classifier: 'rule',
         metadata: '{}',
         occurred_at: now,

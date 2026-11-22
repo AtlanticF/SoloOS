@@ -84,6 +84,29 @@ pnpm test     # server Vitest suite
 - **Database path:** `~/.soloos/soloos.db` (created automatically; not in the repo).
 - **Stability:** SoloOS is under active development; HTTP shapes and behavior may change. Treat this README as a living overview, not a frozen spec.
 
+### Remote client (Mode 1)
+
+Run SoloOS as a **hosted web client that connects to a one-command local server** (GitNexus-style) — your data stays in your **local** SQLite.
+
+1. **Start the local server:** `pnpm serve` (listens on **:5010**).
+2. **Open the hosted client.** It auto-detects the local server via `/health` and connects — no refresh.
+
+The hosted client is the web app built with the local server as its API base:
+
+```bash
+VITE_API_BASE=http://localhost:5010/api pnpm --filter web build   # → apps/web/dist
+```
+
+Deploy `apps/web/dist` to any static host (e.g. Vercel; `apps/web/vercel.json` provides SPA routing). Allow the hosted origin when you start the server:
+
+```bash
+SOLOOS_ALLOWED_ORIGINS=https://your-client.example pnpm serve
+```
+
+**Try it locally** (hosted-style, different origin): build as above, then `pnpm --filter web preview` (serves `dist` on **:4173**) and, in another terminal, `SOLOOS_ALLOWED_ORIGINS=http://localhost:4173 pnpm serve`. Open **http://localhost:4173** — the page connects to the local server on :5010.
+
+Browser support: reliable in Chromium (relies on the Private Network Access preflight); Safari/Firefox vary. Local `pnpm dev` (Mode 2, :3000) is unchanged.
+
 ---
 
 ## License
@@ -148,5 +171,6 @@ $$
 
 ## Further reading in this repo
 
+- [`docs/product-spine.md`](./docs/product-spine.md) — **the one user story + the closed loop**, and where every piece of work sits on it. Start here for "what is SoloOS, and what's the next thing to close."
 - [`DESIGN.md`](./DESIGN.md) — visual system, colors, and UI principles.
 - [`brainstorming.md`](./brainstorming.md) — product and architecture notes (Chinese + English), aligned with the current codebase.

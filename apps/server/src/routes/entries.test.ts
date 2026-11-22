@@ -45,6 +45,55 @@ describe('POST /api/entries', () => {
 
 })
 
+describe('POST /api/entries — energy rating', () => {
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    app = createApp(createTestDb())
+  })
+
+  it('records an ENERGY event carrying the rating as impact_score', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'steady focus', source: 'cli', pillar: 'ENERGY', impact_score: 3 }),
+    })
+    expect(res.status).toBe(201)
+
+    const events = await (await app.request('/api/events?pillar=ENERGY')).json()
+    expect(events).toHaveLength(1)
+    expect(events[0].pillar).toBe('ENERGY')
+    expect(events[0].impact_score).toBe(3)
+  })
+
+  it('rejects an energy rating above 5', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'wired', source: 'cli', pillar: 'ENERGY', impact_score: 6 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a non-integer energy rating', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'meh', source: 'cli', pillar: 'ENERGY', impact_score: 2.5 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('requires a rating for an explicit energy entry', async () => {
+    const res = await app.request('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'no rating', source: 'cli', pillar: 'ENERGY' }),
+    })
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('GET /api/entries', () => {
   let app: ReturnType<typeof createApp>
 

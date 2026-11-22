@@ -67,7 +67,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **SoloOS** (1183 symbols, 1835 relationships, 18 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **SoloOS** (2154 symbols, 3476 relationships, 56 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -107,3 +107,40 @@ This project is indexed by GitNexus as **SoloOS** (1183 symbols, 1835 relationsh
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+<!-- harness-mini:start -->
+# harness-mini
+
+This project has harness-mini installed. The repository is the system of record:
+read `ARCHITECTURE.md`, `harness/manifest.md`, and the active plan before using
+the harness lifecycle.
+
+## 40% line
+
+Keep broad exploration in a separate context where possible, return concise
+distillates, and checkpoint handoffs under `.trace/checkpoints/`. Estimate
+context occupancy with `bin/ctx.sh <used_tokens> [window]`; at or above 40%,
+checkpoint before taking on new work.
+
+## Lifecycle
+
+`intake -> prd -> issues -> implement <-> evaluate -> checkpoint -> done`
+
+- Only the main agent advances stages via `stage-viewer`.
+- Active work lives in `docs/exec-plans/active/`; this existing project starts
+  from `docs/exec-plans/active/0001-recon.md`.
+- Use `.claude/skills/<name>/SKILL.md` for Claude-native harness skills.
+- Use `.agents/skills/<name>/SKILL.md` for Codex-facing migrated harness skills.
+- Use `.claude/agents/<name>.md` or `.codex/agents/<name>.toml` for role
+  guidance when splitting work into separate contexts.
+
+## Harness CLI
+
+- `bin/harness.sh version` checks the installed harness version.
+- `bin/harness.sh update` pulls a newer harness, preserving edited files as
+  `<file>.new`.
+- `bin/harness.sh doctor` checks install health and unresolved update conflicts.
+- `bin/harness.sh status` summarizes active plans, checkpoints, conflicts, and
+  recent trace state.
+
+<!-- harness-mini:end -->

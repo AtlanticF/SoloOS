@@ -1,4 +1,6 @@
-const BASE = '/api';
+// Defaults to the same-origin Vite proxy (Mode 2, fully local). A hosted client
+// (Mode 1) sets VITE_API_BASE to the local server URL, e.g. http://localhost:3000/api.
+const BASE = import.meta.env.VITE_API_BASE ?? '/api';
 async function get(path) {
     const res = await fetch(`${BASE}${path}`);
     if (!res.ok)
@@ -46,9 +48,12 @@ export const api = {
     projects: {
         list: () => get('/projects'),
     },
+    balance: {
+        get: () => get('/balance'),
+    },
     reviews: {
         current: () => get('/reviews/current'),
-        complete: (id, reflection) => post(`/reviews/${id}/complete`, { reflection }),
+        complete: (id, reflection, energyRating, agentCostDecision) => post(`/reviews/${id}/complete`, { reflection, energy_rating: energyRating, agent_cost_decision: agentCostDecision }),
     },
     insights: {
         list: (params) => {
@@ -65,6 +70,7 @@ export const api = {
     },
     output: {
         summary: () => get('/output/summary'),
+        projectEconomics: () => get('/output/project-economics'),
         eventById: (eventId) => get(`/output/events/${eventId}`),
         events: (params) => {
             const q = new URLSearchParams(Object.fromEntries(Object.entries({
@@ -89,6 +95,28 @@ export const api = {
         test: () => post('/github-config/test', {}),
         repos: () => get('/github-config/repos'),
     },
+    agentCost: {
+        providers: () => get('/agent-cost/providers'),
+        personalSubscriptions: () => get('/agent-cost/personal-subscriptions'),
+        savePersonalSubscription: (body) => post('/agent-cost/personal-subscriptions', body),
+        updatePersonalSubscription: (id, body) => put(`/agent-cost/personal-subscriptions/${id}`, body),
+        disablePersonalSubscription: (id) => post(`/agent-cost/personal-subscriptions/${id}/disable`, {}),
+        deletePersonalSubscription: (id) => del(`/agent-cost/personal-subscriptions/${id}`),
+        personalConnectors: () => get('/agent-cost/personal-connectors'),
+        allocatePersonalActivity: (dayStart) => post('/agent-cost/personal-activity/allocate', { day_start: dayStart }),
+        saveProvider: (provider, body) => put(`/agent-cost/providers/${provider}`, body),
+        deleteProvider: (provider) => del(`/agent-cost/providers/${provider}`),
+        testProvider: (provider) => post(`/agent-cost/providers/${provider}/test`, {}),
+        syncProvider: (provider, body) => post(`/agent-cost/providers/${provider}/sync`, body),
+        events: (params) => {
+            const q = new URLSearchParams(Object.fromEntries(Object.entries({
+                assignment: params?.assignment,
+                limit: params?.limit?.toString(),
+            }).filter(([, v]) => v !== undefined))).toString();
+            return get(`/agent-cost/events${q ? `?${q}` : ''}`);
+        },
+        assignProject: (eventId, body) => put(`/agent-cost/events/${eventId}/project`, body),
+    },
     associations: {
         list: (params) => {
             const q = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined))).toString();
@@ -104,14 +132,20 @@ export const queryKeys = {
     events: (params) => ['events', params],
     projects: () => ['projects'],
     reviewCurrent: () => ['reviews', 'current'],
+    balance: () => ['balance'],
     insights: (params) => ['insights', params],
     agentConfig: () => ['agent-config'],
     agentHealth: () => ['agent-health'],
     outputSummary: () => ['output', 'summary'],
+    projectEconomics: () => ['output', 'project-economics'],
     outputEvents: (params) => ['output', 'events', params],
     outputSyncStatus: () => ['output', 'sync-status'],
     outputBindings: () => ['output', 'repo-bindings'],
     githubConfig: () => ['github-config'],
     githubRepos: () => ['github-config', 'repos'],
+    agentCostProviders: () => ['agent-cost', 'providers'],
+    agentCostPersonalSubscriptions: () => ['agent-cost', 'personal-subscriptions'],
+    agentCostPersonalConnectors: () => ['agent-cost', 'personal-connectors'],
+    agentCostEvents: (params) => ['agent-cost', 'events', params],
     associations: (params) => ['associations', params],
 };

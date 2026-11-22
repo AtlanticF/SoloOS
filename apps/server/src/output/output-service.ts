@@ -7,6 +7,7 @@ import type {
   OutputLifecycleState,
   OutputEvent,
   OutputSummary,
+  ProjectEconomics,
   RepoBinding,
   RepoSyncState,
   OutputEventsPage,
@@ -80,6 +81,58 @@ export async function getOutputSummary(db: DB): Promise<OutputSummary> {
   }
 }
 
+export async function listProjectEconomics(db: DB): Promise<ProjectEconomics[]> {
+  const projects = await db.select().from(schema.projects)
+  const outputRows = await db.select().from(schema.output_metadata)
+  const agentCostRows = await db.select().from(schema.agent_cost_events)
+  const byProject = new Map<string, {
+    project_id: string
+    project_name: string
+    revenueCents: number
+    outputCostCents: number
+    agentCostCents: number
+  }>()
+
+  for (const project of projects) {
+    byProject.set(project.id, {
+      project_id: project.id,
+      project_name: project.name,
+      revenueCents: 0,
+      outputCostCents: 0,
+      agentCostCents: 0,
+    })
+  }
+
+  for (const row of outputRows) {
+    if (!row.project_id) continue
+    const bucket = byProject.get(row.project_id)
+    if (!bucket) continue
+    bucket.revenueCents += toCents(row.realized_revenue)
+    bucket.outputCostCents += toCents(row.allocated_cost)
+  }
+
+  for (const row of agentCostRows) {
+    if (!row.project_id) continue
+    const bucket = byProject.get(row.project_id)
+    if (!bucket) continue
+    bucket.agentCostCents += toCents(row.amount)
+  }
+
+  return [...byProject.values()]
+    .filter((row) => row.revenueCents > 0 || row.outputCostCents > 0 || row.agentCostCents > 0)
+    .map((row) => {
+      const marginCents = row.revenueCents - row.outputCostCents - row.agentCostCents
+      return {
+        project_id: row.project_id,
+        project_name: row.project_name,
+        realized_revenue: fromCents(row.revenueCents),
+        output_allocated_cost: fromCents(row.outputCostCents),
+        agent_cost: fromCents(row.agentCostCents),
+        margin: fromCents(marginCents),
+      }
+    })
+}
+
 // ── Events list ───────────────────────────────────────────────────────────────
 
 export async function listOutputEvents(
@@ -108,6 +161,14 @@ export async function listOutputEvents(
     items: items.map(deserializeOutputEvent),
     next_cursor: hasMore ? items[items.length - 1].id : null,
   }
+}
+
+function toCents(amount: string): number {
+  return Math.round(Number(amount) * 100)
+}
+
+function fromCents(cents: number): string {
+  return (cents / 100).toFixed(2)
 }
 
 export async function getOutputEventByEventId(
