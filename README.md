@@ -171,5 +171,6 @@ $$
 
 ## Further reading in this repo
 
+- [`docs/product-spine.md`](./docs/product-spine.md) — **the one user story + the closed loop**, and where every piece of work sits on it. Start here for "what is SoloOS, and what's the next thing to close."
 - [`DESIGN.md`](./DESIGN.md) — visual system, colors, and UI principles.
 - [`brainstorming.md`](./brainstorming.md) — product and architecture notes (Chinese + English), aligned with the current codebase.

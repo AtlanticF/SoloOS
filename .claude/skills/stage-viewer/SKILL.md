@@ -5,6 +5,13 @@ description: View and advance the lifecycle stage of every requirement. Main-age
 
 You are the main agent holding the tiller. Only you advance the FSM.
 
+## On entry — check for a newer harness (first thing)
+Before routing work in a fresh session, run `bin/harness.sh version` (or read the
+`update:` line `status` prints). If a newer harness-mini is published, **tell the
+user and offer `bin/harness.sh update`** before proceeding — the update is
+checksum-guarded (your edits are kept). It's best-effort: skip silently if
+offline. Then continue.
+
 ## View
 1. List `docs/exec-plans/active/*.md`. For each, read the `stage:` frontmatter.
 2. Report a one-line status per plan: `<plan> — <stage> — <one-line "Now">`.
@@ -22,6 +29,14 @@ You are the main agent holding the tiller. Only you advance the FSM.
 Record the chosen evaluation tier in the plan's `eval:` field (see the `evaluate`
 skill); the `evaluate` exit condition below reads it.
 
+## Fan out the implement stage (full mode)
+You are the orchestrator. Once the **vertical skeleton** passes evaluate (the path
+is proven, the layer contract pinned), you may build the remaining independent
+issues **in parallel** — dispatch one generator per issue, gated on disjoint file
+footprints, per `parallel-slices`. Collect distillates (not diffs) to stay under
+40%, then run a single **integration evaluate** before advancing. Don't fan out
+before the skeleton, and never parallelize issues that share a file.
+
 ## Advance a stage
 You may move a plan forward only when the stage's exit condition is met:
 
@@ -30,13 +45,20 @@ You may move a plan forward only when the stage's exit condition is met:
 | intake | founder-check + five-step done (new) / recon done (existing) |
 | prd | PRD written and grilled (`grill-me`) |
 | issues | atomic, testable issues exist |
-| implement | a vertical slice is green; ready for evaluation |
-| evaluate | the **eval tier passed** all criteria — L0/L1/L2, default L1, per the plan's `eval:` field (else loop back to implement) |
+| implement | a vertical slice is green; ready for evaluation (after a fan-out: all parallel slices green + integrated) |
+| evaluate | the **eval tier passed** all criteria — L0/L1/L2, default L1, per the plan's `eval:` field; a fan-out also needs the **integration evaluate** to pass (else loop back to implement) |
 | checkpoint | checkpoint written to `.trace/checkpoints/` |
 | done | plan moved to `docs/exec-plans/completed/` |
 
 To advance: edit the plan's `stage:` field, append a line to the plan's
 Decisions log, and `bin/trace.sh main <new-stage> stage_advance plan=<plan>`.
+
+## Garden gate (orthogonal, you dispatch it)
+When a plan reaches `done` (and as a release pre-flight), run `bin/harness.sh
+status` and read the `garden:` line. If it says **DUE** — ≥5 checkpoints since the
+last sweep, or the smell backlog crossed its threshold — **dispatch the gardener**
+before opening the next plan. It's non-blocking and small; the gardener never
+advances a stage or grades feature work. See the `garden` skill for the policy.
 
 ## Hard rule
 A sub-agent never edits `stage:` and never declares "done." If a worker claims

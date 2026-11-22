@@ -65,12 +65,18 @@ single step. (See the `five-step` skill for the operational checklist.)
 4. **Constrain boundaries, free the interior.** Enforce invariants (layers,
    schemas, naming) mechanically; allow freedom in *how* a solution is
    expressed inside those boundaries.
-5. **Parse at the boundary.** Validate data shapes where they enter the system;
-   don't probe untyped blobs by guessing structure.
+5. **Type the boundary; never guess the shape.** Get types from the source —
+   depend on a **typed SDK/client** for any external system so the compiler models
+   the data for you. Where none exists (raw HTTP, a CLI's stdout, a file format),
+   **parse and validate the shape where it enters** the system and pass typed
+   values inward. Either way, nothing downstream may build on a guessed or untyped
+   structure. Enforce mechanically at the seam where the project allows (per #4).
 6. **Prefer shared utilities over hand-rolled helpers**, so invariants live in
    one place.
 7. **Pay technical debt in small, continuous installments** — the garbage
-   collector (`garden`), not a once-a-quarter cleanup.
+   collector (`garden`), not a once-a-quarter cleanup. Gardening fires on
+   concrete triggers (≥5 checkpoints, plan-completion, pre-release, or the smell
+   backlog crossing its threshold), surfaced by `harness.sh status`.
 8. **Correct, maintainable, readable beats stylistically human.** Agent-written
    code need not match human style; it must be right and clear for the next run.
 
