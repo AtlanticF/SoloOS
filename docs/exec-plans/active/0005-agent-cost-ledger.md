@@ -145,11 +145,18 @@ show real project economics: return minus output cost minus agent cost.
 - Evaluator must verify tests, provider secret masking, idempotency, and that no
   unofficial Claude/Codex scraping was introduced.
 
-## Now (resume here)
+## Now (resume here) — reconciled 2026-06-03
 
-- Evaluate the completed Agent Cost Ledger slice and decide whether to harden
-  provider sync, expand UI management, or commit after GitNexus scope detection
-  is available.
+- **Code-complete.** All 8 issues `[x]`; verified against the live codebase:
+  117/117 server tests green, shared+server `tsc` clean (2026-06-03).
+- **This is part of ONE story, not three.** 0005 (ledger) + 0006 (provider UI) +
+  0007 (personal connectors) are a single product slice: *"the Financial axis —
+  account for AI agent spend per project so the weekly Review shows true
+  economics (return − output cost − agent cost)."* See `docs/product-spine.md`.
+- **Remaining gate (lifecycle, not code):** run `evaluate` at the declared **L2**
+  → `checkpoint` → `done` → move to `completed/`. No new building required; the
+  loop was just never closed. Scope was already (correctly) bounded in Intake —
+  resist further provider expansion before closing.
 
 ## Next
 

@@ -112,9 +112,18 @@ eval: L2
 - Tier: L2 because this affects financial semantics, local agent execution,
   permissions, and trust boundaries.
 
-## Now
+## Now — reconciled 2026-06-03
 
-- Evaluate the completed personal agent cost connector slice.
+- **Code-complete.** All 8 issues `[x]`; verified in the 117/117 green server
+  suite, shared+server `tsc` clean (2026-06-03).
+- **One open verification:** Issue 8's **browser smoke was never done** (the dev
+  port 3000 was occupied at the time). The Settings journey for personal
+  connectors is built + API-tested but not yet eyeballed in the running app.
+- **Part of the single Financial-axis story** with 0005 + 0006 (see
+  `docs/product-spine.md`).
+- **Remaining gate:** complete the browser smoke (start the app, walk the
+  Settings → personal connectors → manual sync → cost-source split journey),
+  then `evaluate` (L2) → `checkpoint` → `done`.
 
 ## Decisions log
 

@@ -55,16 +55,31 @@ heavier to install or harder to reason about. Resolved via a grill-me session
 - `status`/`doctor` use grep/awk/tail — no JSON parser.
 - Each PR: branch → green `tests/run.sh` → PR (per [[git-flow-preference]]).
 
-## Now (resume here)
-- **PR A done** (branch `first-run-docs`): #2 codex/cursor, #10 quick/full +
-  README table, #6 shell-compat, #9-docs source-vs-mirror, #5-docs threshold
-  tuning + ctx.sh -h, #7 recon schema. 69/69 green. → open PR.
+## Now (resume here) — reconciled 2026-06-03 vs harness 0.6.0
+This is **harness-framework** work (not SoloOS product). Most of it is now
+delivered; only PR B remains:
+- **PR A — DONE** (branch `first-run-docs`): #2 codex/cursor getting-started,
+  #10 quick/full templates + README table, #6 shell-compat, #9-docs, #5-docs,
+  #7 recon schema. Verified present in the install.
+- **PR C — DELIVERED UPSTREAM by harness 0.6.0**: #8 tiered eval is now the
+  shipped convention (`.claude/skills/evaluate/SKILL.md` carries L0/L1/L2).
+- **PR D — DELIVERED UPSTREAM by harness 0.6.0**: #3 `doctor`, #4 `status`,
+  #5 ctx_pct surfacing, #9 divergence — all present in `bin/harness.sh`
+  (`cmd_doctor`/`cmd_status` verified running).
+- **PR B — REMAINING (the only gap)**: `docs/walkthrough.md` + the illustrative
+  `docs/examples/demo-auth/` bundle. Currently ABSENT.
 
 ## Next
-- PR B (walkthrough + demo-auth example) → PR C (tiered eval) → PR D (doctor +
-  status + #9 divergence check + #5 ctx_pct surfacing, TDD).
+- Decide with the user: **(a)** build PR B (walkthrough + demo-auth example) to
+  close this plan, or **(b)** close it now as substantially-superseded and split
+  PR B into its own tiny plan if still wanted. No product-spine dependency either
+  way — this is orthogonal harness tooling.
 
 ## Decisions log
 - 2026-05-30: grill-me converged all 10 + 4-PR delivery. Stage=implement.
 - 2026-05-30: PR A built (docs only; also fixed stale skills/*.md links left by
   the folder migration). Forward-refs to unbuilt status/doctor/walkthrough avoided.
+- 2026-06-03: Reconciled vs harness 0.6.0 (project updated 0.4.0→0.6.0). PR C
+  (tiered eval) and PR D (doctor/status/ctx/divergence) are delivered upstream —
+  verified in the install. Only PR B (walkthrough + demo-auth) remains. Plan is
+  near-complete; awaiting user decision to build PR B or close.

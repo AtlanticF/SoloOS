@@ -63,12 +63,19 @@ eval: L2
 - Tier: L2 because this touches provider integrations, secret handling, Settings
   UI, review economics, and project attribution.
 
-## Now
+## Now — reconciled 2026-06-03
 
-- Await L2 evaluator rerun. First L2 evaluation failed Issue 3 because Cursor
-  sync imported usage events but not `/teams/spend`; the fix is implemented and
-  local verification is green, but Codex evaluator rerun is blocked by usage
-  limits until 2026-05-31 19:55.
+- **The blocker is stale/expired.** The Codex usage-limit window ("until
+  2026-05-31 19:55") that stalled the L2 rerun is **3 days past**; nothing is
+  actually blocking anymore.
+- **Code-complete.** All 5 issues `[x]`; the Issue 3 fix (Cursor `/teams/spend`
+  ingestion) is in and verified locally — part of the 117/117 green server suite
+  (2026-06-03).
+- **Part of the single Financial-axis story** with 0005 + 0007 (see
+  `docs/product-spine.md`).
+- **Remaining gate:** re-run `evaluate` (L2) on the Issue 3 fix → if pass,
+  `checkpoint` → `done`. Use a non-blocked evaluator (L1 lightweight is adequate
+  for this dogfood-internal slice if L2 capacity is again constrained).
 
 ## Decisions log
 
